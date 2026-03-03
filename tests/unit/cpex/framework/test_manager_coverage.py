@@ -536,3 +536,149 @@ class TestShutdownLazyAsyncLock:
 
         assert pm._async_lock is not None
         assert isinstance(pm._async_lock, asyncio.Lock)
+
+
+# ===========================================================================
+# Copy-on-Write payload isolation
+# ===========================================================================
+
+
+class TestCopyOnWritePayloadIsolation:
+    """Verify that CoW-based isolation protects the live payload chain."""
+
+    @pytest.fixture(autouse=True)
+    def reset_manager(self):
+        PluginManager.reset()
+        yield
+        PluginManager.reset()
+
+    @pytest.mark.asyncio
+    async def test_inplace_args_mutation_does_not_corrupt_chain(self):
+        """Plugin that mutates payload.args[k] in-place should not affect
+        the effective_payload seen by subsequent plugins."""
+        from cpex.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.tools import ToolPreInvokePayload
+
+        mutations_seen = []
+
+        class MutatingPlugin(Plugin):
+            async def test_hook(self, payload, context):
+                # In-place mutation of the wrapped args dict
+                payload.args["injected"] = "evil"
+                mutations_seen.append(dict(payload.args))
+                return PluginResult(continue_processing=True)
+
+        class ObservingPlugin(Plugin):
+            async def test_hook(self, payload, context):
+                mutations_seen.append(dict(payload.args))
+                return PluginResult(continue_processing=True)
+
+        config_m = _make_config(name="mutator", priority=1)
+        config_o = _make_config(name="observer", priority=2)
+        plugin_m = MutatingPlugin(config_m)
+        plugin_o = ObservingPlugin(config_o)
+
+        hr_m = HookRef("test_hook", PluginRef(plugin_m))
+        hr_o = HookRef("test_hook", PluginRef(plugin_o))
+
+        policies = {"test_hook": HookPayloadPolicy(writable_fields=frozenset({"args"}))}
+        executor = PluginExecutor(hook_policies=policies)
+
+        payload = ToolPreInvokePayload(name="calc", args={"x": "1"})
+        ctx = GlobalContext(request_id="cow-test")
+
+        await executor.execute([hr_m, hr_o], payload, ctx, hook_type="test_hook")
+
+        # Mutator sees its own mutation
+        assert mutations_seen[0] == {"x": "1", "injected": "evil"}
+        # Observer should see the original args, not the mutation
+        assert "injected" not in mutations_seen[1]
+        assert mutations_seen[1] == {"x": "1"}
+
+    @pytest.mark.asyncio
+    async def test_http_header_setitem_goes_to_cow(self):
+        """HttpHeaderPayload.__setitem__ writes go to CoW overlay,
+        not the original header dict."""
+        from cpex.framework.hooks.http import HttpHeaderPayload
+        from cpex.framework.hooks.policies import HookPayloadPolicy
+
+        original_headers = {"Authorization": "Bearer token"}
+
+        class HeaderMutator(Plugin):
+            async def test_hook(self, payload, context):
+                payload.root["X-Injected"] = "bad"
+                return PluginResult(continue_processing=True)
+
+        config = _make_config(name="hdr_mutator", priority=1)
+        plugin = HeaderMutator(config)
+        hr = HookRef("test_hook", PluginRef(plugin))
+
+        policies = {"test_hook": HookPayloadPolicy(writable_fields=frozenset({"root"}))}
+        executor = PluginExecutor(hook_policies=policies)
+
+        payload = HttpHeaderPayload(root=original_headers)
+        ctx = GlobalContext(request_id="hdr-cow-test")
+
+        await executor.execute([hr], payload, ctx, hook_type="test_hook")
+
+        # Original headers untouched
+        assert "X-Injected" not in original_headers
+        assert original_headers == {"Authorization": "Bearer token"}
+
+    @pytest.mark.asyncio
+    async def test_policy_filtering_works_with_cow(self):
+        """Policy-based field filtering works correctly when the input
+        was CoW-wrapped (plugin returns a new payload via model_copy)."""
+        from cpex.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.tools import ToolPreInvokePayload
+
+        class PolicyPlugin(Plugin):
+            async def test_hook(self, payload, context):
+                new = payload.model_copy(update={"name": "renamed"})
+                return PluginResult(continue_processing=True, modified_payload=new)
+
+        config = _make_config(name="policied")
+        plugin = PolicyPlugin(config)
+        hr = HookRef("test_hook", PluginRef(plugin))
+
+        # Only "name" is writable
+        policies = {"test_hook": HookPayloadPolicy(writable_fields=frozenset({"name"}))}
+        executor = PluginExecutor(hook_policies=policies)
+
+        payload = ToolPreInvokePayload(name="original", args={"a": "1"})
+        ctx = GlobalContext(request_id="policy-cow-test")
+
+        result, _ = await executor.execute([hr], payload, ctx, hook_type="test_hook")
+
+        assert result.modified_payload is not None
+        assert result.modified_payload.name == "renamed"
+        assert result.modified_payload.args == {"a": "1"}
+
+    @pytest.mark.asyncio
+    async def test_deny_by_default_uses_cow_isolation(self):
+        """When default_hook_policy=DENY, payload is CoW-isolated even
+        without an explicit per-hook policy."""
+        from cpex.framework.hooks.policies import DefaultHookPolicy
+        from cpex.framework.hooks.tools import ToolPreInvokePayload
+        from cpex.framework.memory import CopyOnWriteDict
+
+        saw_cow = []
+
+        class InspectPlugin(Plugin):
+            async def test_hook(self, payload, context):
+                saw_cow.append(isinstance(payload.args, CopyOnWriteDict))
+                return PluginResult(continue_processing=True)
+
+        config = _make_config(name="inspector")
+        plugin = InspectPlugin(config)
+        hr = HookRef("test_hook", PluginRef(plugin))
+
+        executor = PluginExecutor()
+        executor.default_hook_policy = DefaultHookPolicy.DENY
+
+        payload = ToolPreInvokePayload(name="t", args={"k": "v"})
+        ctx = GlobalContext(request_id="deny-cow-test")
+
+        await executor.execute([hr], payload, ctx, hook_type="test_hook")
+
+        assert saw_cow == [True]

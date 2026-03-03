@@ -43,7 +43,7 @@ from cpex.framework.errors import convert_exception_to_error, PluginError, Plugi
 from cpex.framework.hooks.policies import apply_policy, DefaultHookPolicy, HookPayloadPolicy
 from cpex.framework.loader.config import ConfigLoader
 from cpex.framework.loader.plugin import PluginLoader
-from cpex.framework.memory import copyonwrite
+from cpex.framework.memory import copyonwrite, wrap_payload_for_isolation
 from cpex.framework.models import (
     Config,
     GlobalContext,
@@ -224,7 +224,7 @@ class PluginExecutor:
             )
             if needs_isolation:
                 plugin_input = (
-                    effective_payload.model_copy(deep=True)
+                    wrap_payload_for_isolation(effective_payload)
                     if isinstance(effective_payload, BaseModel)
                     else copy.deepcopy(effective_payload)
                 )
@@ -393,7 +393,7 @@ class PluginExecutor:
                         raise PluginViolationError(f"{hook_ref.name} blocked by plugin")
                     return PluginResult(
                         continue_processing=False,
-                        modified_payload=payload,
+                        modified_payload=None,
                         violation=result.violation,
                         metadata=combined_metadata,
                     )

@@ -11,7 +11,11 @@ in plugin contexts.
 """
 
 # Standard
+import copy
 from typing import Any, Iterator, Optional, TypeVar
+
+# Third-Party
+from pydantic import BaseModel, RootModel
 
 T = TypeVar("T")
 
@@ -353,12 +357,129 @@ class CopyOnWriteDict(dict):
         super().clear()
 
 
+class CopyOnWriteList(list):
+    """
+    A list subclass that implements copy-on-write behavior using lazy-copy strategy.
+
+    Read operations delegate to the original list; on first write, the entire
+    list is materialized into the parent ``list`` storage. This is O(0) for
+    read-only access (common case) and O(n) on first write.
+
+    Example:
+        >>> original = [1, 2, 3]
+        >>> cow = CopyOnWriteList(original)
+        >>> isinstance(cow, list)
+        True
+        >>> cow[0]
+        1
+        >>> cow[0] = 10  # triggers materialization
+        >>> cow[0]
+        10
+        >>> original  # unchanged
+        [1, 2, 3]
+    """
+
+    def __init__(self, original: list):
+        super().__init__()
+        self._original = original
+        self._materialized = False
+
+    # -- internal helpers --------------------------------------------------
+
+    def _materialize(self):
+        """Copy original data into parent list storage on first write."""
+        if not self._materialized:
+            super().extend(self._original)
+            self._materialized = True
+
+    def _source(self):
+        """Return the backing data: parent list if materialized, else original."""
+        return super().__iter__() if self._materialized else self._original
+
+    # -- read operations (delegate to original when not materialized) ------
+
+    def __getitem__(self, index):
+        if self._materialized:
+            return super().__getitem__(index)
+        return self._original[index]
+
+    def __len__(self):
+        if self._materialized:
+            return super().__len__()
+        return len(self._original)
+
+    def __iter__(self):
+        if self._materialized:
+            return super().__iter__()
+        return iter(self._original)
+
+    def __contains__(self, item):
+        if self._materialized:
+            return super().__contains__(item)
+        return item in self._original
+
+    # -- write operations (materialize on first write) ---------------------
+
+    def __setitem__(self, index, value):
+        self._materialize()
+        super().__setitem__(index, value)
+
+    def __delitem__(self, index):
+        self._materialize()
+        super().__delitem__(index)
+
+    def append(self, value):
+        self._materialize()
+        super().append(value)
+
+    def extend(self, values):
+        self._materialize()
+        super().extend(values)
+
+    def insert(self, index, value):
+        self._materialize()
+        super().insert(index, value)
+
+    def remove(self, value):
+        self._materialize()
+        super().remove(value)
+
+    def pop(self, index=-1):
+        self._materialize()
+        return super().pop(index)
+
+    def clear(self):
+        self._materialize()
+        super().clear()
+
+    def sort(self, *, key=None, reverse=False):
+        self._materialize()
+        super().sort(key=key, reverse=reverse)
+
+    def reverse(self):
+        self._materialize()
+        super().reverse()
+
+    # -- introspection -----------------------------------------------------
+
+    def has_modifications(self) -> bool:
+        """Return True if any write operation has been performed."""
+        return self._materialized
+
+    def copy(self) -> list:
+        """Return a plain list snapshot of the current contents."""
+        return list(self)
+
+    def __repr__(self) -> str:
+        return f"CopyOnWriteList({list(self)})"
+
+
 def copyonwrite(o: T) -> T:
     """
     Returns a copy-on-write wrapper of the original object.
 
     Args:
-        o: The object to wrap. Currently only supports dict objects.
+        o: The object to wrap. Supports dict and list objects.
 
     Returns:
         A copy-on-write wrapper around the object.
@@ -368,4 +489,82 @@ def copyonwrite(o: T) -> T:
     """
     if isinstance(o, dict):
         return CopyOnWriteDict(o)
+    if isinstance(o, list):
+        return CopyOnWriteList(o)
     raise TypeError(f"No copy-on-write wrapper available for {type(o)}")
+
+
+# ---------------------------------------------------------------------------
+# Payload isolation helpers
+# ---------------------------------------------------------------------------
+
+_PRIMITIVE_TYPES = (str, int, float, bool, bytes, type(None))
+
+
+def _wrap_value(value: Any) -> Any:
+    """Wrap a single value with the appropriate CoW wrapper.
+
+    - dict → CopyOnWriteDict
+    - list → CopyOnWriteList
+    - RootModel → reconstruct with wrapped .root
+    - BaseModel (non-RootModel) → recursively wrap
+    - Primitives → share as-is
+    - Other mutable types → copy.deepcopy fallback
+    """
+    if isinstance(value, _PRIMITIVE_TYPES):
+        return value
+    if isinstance(value, RootModel):
+        root = value.root
+        if isinstance(root, dict):
+            wrapped_root = CopyOnWriteDict(root)
+        elif isinstance(root, list):
+            wrapped_root = CopyOnWriteList(root)
+        else:
+            wrapped_root = copy.deepcopy(root)
+        return value.model_construct(root=wrapped_root)
+    if isinstance(value, BaseModel):
+        return wrap_payload_for_isolation(value)
+    if isinstance(value, dict):
+        return CopyOnWriteDict(value)
+    if isinstance(value, list):
+        return CopyOnWriteList(value)
+    # Other mutable types — fallback to deep copy
+    return copy.deepcopy(value)
+
+
+def wrap_payload_for_isolation(payload: BaseModel) -> BaseModel:
+    """Return a shallow copy of *payload* with mutable nested fields wrapped
+    in copy-on-write containers.
+
+    This replaces ``model_copy(deep=True)`` / ``copy.deepcopy()`` for Pydantic
+    payload isolation.  Only fields that contain mutable containers (dicts,
+    lists, BaseModels) are wrapped; primitives are shared as-is.
+
+    Args:
+        payload: A frozen Pydantic BaseModel (typically a PluginPayload).
+
+    Returns:
+        A new model instance with mutable fields CoW-wrapped.
+    """
+    # RootModel payloads (e.g. HttpHeaderPayload) — wrap .root directly
+    if isinstance(payload, RootModel):
+        root = payload.root
+        if isinstance(root, dict):
+            wrapped_root = CopyOnWriteDict(root)
+        elif isinstance(root, list):
+            wrapped_root = CopyOnWriteList(root)
+        else:
+            wrapped_root = copy.deepcopy(root)
+        return payload.model_construct(root=wrapped_root)
+
+    updates = {}
+    for field_name, field_info in type(payload).model_fields.items():
+        value = getattr(payload, field_name, None)
+        if value is None or isinstance(value, _PRIMITIVE_TYPES):
+            continue
+        updates[field_name] = _wrap_value(value)
+
+    if not updates:
+        return payload
+
+    return payload.model_copy(update=updates)

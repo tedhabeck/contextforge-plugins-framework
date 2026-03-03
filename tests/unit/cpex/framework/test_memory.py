@@ -9,9 +9,15 @@ Tests for memory module.
 
 # Third-Party
 import pytest
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 # First-Party
-from cpex.framework.memory import copyonwrite, CopyOnWriteDict
+from cpex.framework.memory import (
+    copyonwrite,
+    CopyOnWriteDict,
+    CopyOnWriteList,
+    wrap_payload_for_isolation,
+)
 
 
 class TestCopyOnWriteDict:
@@ -849,11 +855,28 @@ class TestCopyOnWriteFunction:
         assert original == {"a": 1}
         assert cow["a"] == 10
 
-    def test_copyonwrite_with_non_dict_raises_typeerror(self):
-        """Test that copyonwrite() raises TypeError for non-dict types."""
-        with pytest.raises(TypeError, match="No copy-on-write wrapper available"):
-            copyonwrite([1, 2, 3])
+    def test_copyonwrite_with_list(self):
+        """Test copyonwrite() function with a list."""
+        original = [1, 2, 3]
+        cow = copyonwrite(original)
 
+        assert isinstance(cow, CopyOnWriteList)
+        assert isinstance(cow, list)
+        assert list(cow) == [1, 2, 3]
+
+    def test_copyonwrite_with_list_preserves_original(self):
+        """Test that copyonwrite() doesn't modify the original list."""
+        original = [1, 2, 3]
+        cow = copyonwrite(original)
+
+        cow[0] = 10
+        cow.append(4)
+
+        assert original == [1, 2, 3]
+        assert list(cow) == [10, 2, 3, 4]
+
+    def test_copyonwrite_with_unsupported_raises_typeerror(self):
+        """Test that copyonwrite() raises TypeError for unsupported types."""
         with pytest.raises(TypeError, match="No copy-on-write wrapper available"):
             copyonwrite("string")
 
@@ -865,3 +888,320 @@ class TestCopyOnWriteFunction:
 
         with pytest.raises(TypeError, match="No copy-on-write wrapper available"):
             copyonwrite(None)
+
+
+class TestCopyOnWriteList:
+    """Test suite for CopyOnWriteList class."""
+
+    def test_is_list_subclass(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+        assert isinstance(cow, list)
+        assert issubclass(CopyOnWriteList, list)
+
+    def test_read_delegation(self):
+        """Read operations delegate to original without materializing."""
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        assert cow[0] == 1
+        assert cow[2] == 3
+        assert len(cow) == 3
+        assert list(cow) == [1, 2, 3]
+        assert 2 in cow
+        assert 99 not in cow
+        assert not cow.has_modifications()
+
+    def test_read_with_slice(self):
+        original = [10, 20, 30, 40]
+        cow = CopyOnWriteList(original)
+        assert cow[1:3] == [20, 30]
+        assert not cow.has_modifications()
+
+    def test_setitem_materializes(self):
+        """First write materializes the list and protects original."""
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        cow[0] = 10
+
+        assert cow[0] == 10
+        assert list(cow) == [10, 2, 3]
+        assert original == [1, 2, 3]
+        assert cow.has_modifications()
+
+    def test_delitem(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        del cow[1]
+
+        assert list(cow) == [1, 3]
+        assert original == [1, 2, 3]
+
+    def test_append(self):
+        original = [1, 2]
+        cow = CopyOnWriteList(original)
+
+        cow.append(3)
+
+        assert list(cow) == [1, 2, 3]
+        assert original == [1, 2]
+        assert cow.has_modifications()
+
+    def test_extend(self):
+        original = [1]
+        cow = CopyOnWriteList(original)
+
+        cow.extend([2, 3])
+
+        assert list(cow) == [1, 2, 3]
+        assert original == [1]
+
+    def test_insert(self):
+        original = [1, 3]
+        cow = CopyOnWriteList(original)
+
+        cow.insert(1, 2)
+
+        assert list(cow) == [1, 2, 3]
+        assert original == [1, 3]
+
+    def test_remove(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        cow.remove(2)
+
+        assert list(cow) == [1, 3]
+        assert original == [1, 2, 3]
+
+    def test_pop(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        val = cow.pop()
+
+        assert val == 3
+        assert list(cow) == [1, 2]
+        assert original == [1, 2, 3]
+
+    def test_pop_index(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        val = cow.pop(0)
+
+        assert val == 1
+        assert list(cow) == [2, 3]
+
+    def test_clear(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        cow.clear()
+
+        assert list(cow) == []
+        assert len(cow) == 0
+        assert original == [1, 2, 3]
+
+    def test_sort(self):
+        original = [3, 1, 2]
+        cow = CopyOnWriteList(original)
+
+        cow.sort()
+
+        assert list(cow) == [1, 2, 3]
+        assert original == [3, 1, 2]
+
+    def test_reverse(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        cow.reverse()
+
+        assert list(cow) == [3, 2, 1]
+        assert original == [1, 2, 3]
+
+    def test_has_modifications_false_initially(self):
+        cow = CopyOnWriteList([1, 2])
+        assert not cow.has_modifications()
+
+    def test_has_modifications_true_after_write(self):
+        cow = CopyOnWriteList([1, 2])
+        cow.append(3)
+        assert cow.has_modifications()
+
+    def test_copy(self):
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+        copied = cow.copy()
+        assert copied == [1, 2, 3]
+        assert isinstance(copied, list)
+        assert not isinstance(copied, CopyOnWriteList)
+
+    def test_repr(self):
+        cow = CopyOnWriteList([1, 2])
+        assert "CopyOnWriteList" in repr(cow)
+        assert "1" in repr(cow)
+
+    def test_empty_list(self):
+        original = []
+        cow = CopyOnWriteList(original)
+        assert len(cow) == 0
+        assert list(cow) == []
+
+    def test_multiple_writes(self):
+        """Multiple writes only materialize once."""
+        original = [1, 2, 3]
+        cow = CopyOnWriteList(original)
+
+        cow[0] = 10
+        cow[1] = 20
+        cow.append(4)
+
+        assert list(cow) == [10, 20, 3, 4]
+        assert original == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# Pydantic helpers for wrap_payload_for_isolation tests
+# ---------------------------------------------------------------------------
+
+
+class _FrozenPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str = "test"
+    args: dict = Field(default_factory=dict)
+
+
+class _PayloadWithList(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str = "test"
+    items: list = Field(default_factory=list)
+
+
+class _PayloadWithNested(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str = "test"
+    inner: _FrozenPayload = Field(default_factory=_FrozenPayload)
+
+
+class _HeaderLike(RootModel[dict[str, str]]):
+    model_config = ConfigDict(frozen=True)
+
+
+class _PayloadWithAny(BaseModel):
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    name: str = "test"
+    data: object = None
+
+
+class TestWrapPayloadForIsolation:
+    """Tests for wrap_payload_for_isolation()."""
+
+    def test_dict_field_wrapped(self):
+        """Dict fields are wrapped with CopyOnWriteDict."""
+        original_args = {"key": "val"}
+        p = _FrozenPayload(name="x", args=original_args)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.args, CopyOnWriteDict)
+        assert wrapped.args["key"] == "val"
+        # Mutation on wrapped copy doesn't affect original
+        wrapped.args["key"] = "changed"
+        assert original_args["key"] == "val"
+
+    def test_list_field_wrapped(self):
+        """List fields are wrapped with CopyOnWriteList."""
+        original_items = [1, 2, 3]
+        p = _PayloadWithList(name="x", items=original_items)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.items, CopyOnWriteList)
+        assert list(wrapped.items) == [1, 2, 3]
+        wrapped.items.append(4)
+        assert original_items == [1, 2, 3]
+
+    def test_nested_basemodel_recursively_wrapped(self):
+        """Nested BaseModel fields are recursively wrapped."""
+        inner_args = {"nested": "data"}
+        inner = _FrozenPayload(name="inner", args=inner_args)
+        p = _PayloadWithNested(name="outer", inner=inner)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.inner.args, CopyOnWriteDict)
+        wrapped.inner.args["nested"] = "changed"
+        assert inner_args["nested"] == "data"
+
+    def test_rootmodel_payload_wrapped(self):
+        """RootModel payloads have their .root dict wrapped."""
+        original_root = {"Content-Type": "text/plain"}
+        p = _HeaderLike(root=original_root)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.root, CopyOnWriteDict)
+        assert wrapped.root["Content-Type"] == "text/plain"
+        wrapped.root["X-New"] = "header"
+        assert "X-New" not in original_root
+
+    def test_primitives_shared(self):
+        """Primitive fields are not copied."""
+        p = _FrozenPayload(name="hello", args={})
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert wrapped.name is p.name
+
+    def test_none_fields_skipped(self):
+        """None-valued fields are not wrapped."""
+        p = _PayloadWithAny(name="x", data=None)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert wrapped.data is None
+
+    def test_any_typed_dict_field_wrapped(self):
+        """Any-typed fields that are dicts get wrapped."""
+        original = {"a": 1}
+        p = _PayloadWithAny(name="x", data=original)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.data, CopyOnWriteDict)
+        wrapped.data["a"] = 99
+        assert original["a"] == 1
+
+    def test_any_typed_list_field_wrapped(self):
+        """Any-typed fields that are lists get wrapped."""
+        original = [1, 2, 3]
+        p = _PayloadWithAny(name="x", data=original)
+
+        wrapped = wrap_payload_for_isolation(p)
+
+        assert isinstance(wrapped.data, CopyOnWriteList)
+        wrapped.data[0] = 99
+        assert original[0] == 1
+
+    def test_payload_with_no_mutable_fields_unchanged(self):
+        """Payload with only primitive fields returns same instance."""
+        p = _FrozenPayload(name="x", args={})
+
+        wrapped = wrap_payload_for_isolation(p)
+        assert wrapped.name == "x"
+        assert wrapped.args == {}
+
+        # Empty dict is not None, so it will be wrapped — test with no dict
+        p2 = _PayloadWithAny(name="x", data=42)
+        wrapped2 = wrap_payload_for_isolation(p2)
+        # data=42 is a primitive, name="x" is a primitive — no updates needed
+        assert wrapped2.name == "x"
+        assert wrapped2.data == 42
