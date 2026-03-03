@@ -38,8 +38,21 @@ from cpex.framework.hooks.http import (
     HttpPreRequestPayload,
     HttpPreRequestResult,
 )
-from cpex.framework.hooks.agents import AgentHookType, AgentPostInvokePayload, AgentPostInvokeResult, AgentPreInvokePayload, AgentPreInvokeResult
-from cpex.framework.hooks.resources import ResourceHookType, ResourcePostFetchPayload, ResourcePostFetchResult, ResourcePreFetchPayload, ResourcePreFetchResult
+from cpex.framework.hooks.agents import (
+    AgentHookType,
+    AgentPostInvokePayload,
+    AgentPostInvokeResult,
+    AgentPreInvokePayload,
+    AgentPreInvokeResult,
+)
+from cpex.framework.hooks.resources import (
+    ResourceHookType,
+    ResourcePostFetchPayload,
+    ResourcePostFetchResult,
+    ResourcePreFetchPayload,
+    ResourcePreFetchResult,
+)
+from cpex.framework.hooks.policies import HookPayloadPolicy
 from cpex.framework.hooks.prompts import (
     PromptHookType,
     PromptPosthookPayload,
@@ -47,9 +60,16 @@ from cpex.framework.hooks.prompts import (
     PromptPrehookPayload,
     PromptPrehookResult,
 )
-from cpex.framework.hooks.tools import ToolHookType, ToolPostInvokePayload, ToolPostInvokeResult, ToolPreInvokeResult, ToolPreInvokePayload
+from cpex.framework.hooks.tools import (
+    ToolHookType,
+    ToolPostInvokePayload,
+    ToolPostInvokeResult,
+    ToolPreInvokeResult,
+    ToolPreInvokePayload,
+)
 from cpex.framework.models import (
     GlobalContext,
+    MCPClientConfig,
     MCPServerConfig,
     PluginCondition,
     PluginConfig,
@@ -60,6 +80,7 @@ from cpex.framework.models import (
     PluginPayload,
     PluginResult,
     PluginViolation,
+    TransportType,
 )
 from cpex.framework.utils import get_attr
 
@@ -67,7 +88,9 @@ from cpex.framework.utils import get_attr
 _plugin_manager: Optional[PluginManager] = None
 
 
-def get_plugin_manager(observability: Optional[ObservabilityProvider] = None) -> Optional[PluginManager]:
+def get_plugin_manager(
+    observability: Optional[ObservabilityProvider] = None, hook_policies: Optional[dict[str, HookPayloadPolicy]] = None
+) -> Optional[PluginManager]:
     """Get or initialize the plugin manager singleton.
 
     This is the public API for accessing the plugin manager from anywhere in the application.
@@ -75,6 +98,7 @@ def get_plugin_manager(observability: Optional[ObservabilityProvider] = None) ->
 
     Args:
         observability: Optional observability provider implementing ObservabilityProvider protocol.
+        hook_policies: Per-hook-type payload modification policies.
 
     Returns:
         PluginManager instance if plugins are enabled, None otherwise.
@@ -88,18 +112,15 @@ def get_plugin_manager(observability: Optional[ObservabilityProvider] = None) ->
     """
     global _plugin_manager  # pylint: disable=global-statement
     if _plugin_manager is None:
-        # Use plugin framework's own settings instead of mcpgateway.config
+        # Use plugin framework's settings
         from cpex.framework.settings import settings  # pylint: disable=import-outside-toplevel
 
         if settings.enabled:
-            # Import concrete policies from the gateway side
-            from mcpgateway.plugins.policy import HOOK_PAYLOAD_POLICIES  # pylint: disable=import-outside-toplevel
-
             _plugin_manager = PluginManager(
                 settings.config_file,
                 timeout=settings.plugin_timeout,
                 observability=observability,
-                hook_policies=HOOK_PAYLOAD_POLICIES,
+                hook_policies=hook_policies,
             )
     return _plugin_manager
 
@@ -128,6 +149,7 @@ __all__ = [
     "HttpPostRequestResult",
     "HttpPreRequestPayload",
     "HttpPreRequestResult",
+    "MCPClientConfig",
     "MCPServerConfig",
     "ObservabilityProvider",
     "Plugin",
@@ -159,4 +181,5 @@ __all__ = [
     "ToolPostInvokeResult",
     "ToolPreInvokeResult",
     "ToolPreInvokePayload",
+    "TransportType",
 ]

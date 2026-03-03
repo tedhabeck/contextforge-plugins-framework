@@ -10,7 +10,7 @@ Test suite for hook registry functionality.
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     get_hook_registry,
     AgentHookType,
     PromptHookType,

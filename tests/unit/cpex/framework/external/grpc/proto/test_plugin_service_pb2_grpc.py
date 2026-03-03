@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/proto/test_plugin_service_pb2_grpc.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/proto/test_plugin_service_pb2_grpc.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 
@@ -15,7 +15,7 @@ import pytest
 
 try:
     import grpc
-    from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2, plugin_service_pb2_grpc
+    from cpex.framework.external.grpc.proto import plugin_service_pb2, plugin_service_pb2_grpc
 
     HAS_GRPC = True
 except ImportError:
@@ -72,7 +72,7 @@ class TestHealthStub:
         stub = plugin_service_pb2_grpc.HealthStub(channel)
         assert stub.Check is not None
         channel.unary_unary.assert_called_once_with(
-            "/mcpgateway.plugins.Health/Check",
+            "/cpex.Health/Check",
             request_serializer=plugin_service_pb2.HealthCheckRequest.SerializeToString,
             response_deserializer=plugin_service_pb2.HealthCheckResponse.FromString,
             _registered_method=True,
@@ -91,7 +91,7 @@ class TestPluginServiceExperimentalAPI:
         args = mock_unary.call_args
         assert args[0][0] is request
         assert args[0][1] == "target:50051"
-        assert args[0][2] == "/mcpgateway.plugins.PluginService/GetPluginConfig"
+        assert args[0][2] == "/cpex.PluginService/GetPluginConfig"
         assert result is mock_unary.return_value
 
     @patch("grpc.experimental.unary_unary")
@@ -101,7 +101,7 @@ class TestPluginServiceExperimentalAPI:
         result = plugin_service_pb2_grpc.PluginService.GetPluginConfigs(request, "target:50051")
         mock_unary.assert_called_once()
         args = mock_unary.call_args
-        assert args[0][2] == "/mcpgateway.plugins.PluginService/GetPluginConfigs"
+        assert args[0][2] == "/cpex.PluginService/GetPluginConfigs"
         assert result is mock_unary.return_value
 
     @patch("grpc.experimental.unary_unary")
@@ -111,7 +111,7 @@ class TestPluginServiceExperimentalAPI:
         result = plugin_service_pb2_grpc.PluginService.InvokeHook(request, "target:50051")
         mock_unary.assert_called_once()
         args = mock_unary.call_args
-        assert args[0][2] == "/mcpgateway.plugins.PluginService/InvokeHook"
+        assert args[0][2] == "/cpex.PluginService/InvokeHook"
         assert result is mock_unary.return_value
 
 
@@ -127,5 +127,5 @@ class TestHealthExperimentalAPI:
         args = mock_unary.call_args
         assert args[0][0] is request
         assert args[0][1] == "target:50051"
-        assert args[0][2] == "/mcpgateway.plugins.Health/Check"
+        assert args[0][2] == "/cpex.Health/Check"
         assert result is mock_unary.return_value

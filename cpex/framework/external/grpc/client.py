@@ -7,6 +7,7 @@ Authors: Teryl Taylor
 External plugin client which connects to a remote server through gRPC.
 Module that contains plugin gRPC client code to serve external plugins.
 """
+
 # pylint: disable=no-member,no-name-in-module
 
 # Standard
@@ -27,7 +28,14 @@ from cpex.framework.external.grpc.proto import plugin_service_pb2, plugin_servic
 from cpex.framework.external.grpc.tls_utils import create_insecure_channel, create_secure_channel
 from cpex.framework.external.proto_convert import pydantic_context_to_proto, update_pydantic_context_from_proto
 from cpex.framework.hooks.registry import get_hook_registry
-from cpex.framework.models import GRPCClientTLSConfig, PluginConfig, PluginContext, PluginErrorModel, PluginPayload, PluginResult
+from cpex.framework.models import (
+    GRPCClientTLSConfig,
+    PluginConfig,
+    PluginContext,
+    PluginErrorModel,
+    PluginPayload,
+    PluginResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +128,9 @@ class GrpcExternalPlugin(Plugin):
             logger.exception("Error connecting to gRPC plugin server: %s", e)
             raise PluginError(error=convert_exception_to_error(e, plugin_name=self.name))
 
-    async def _get_plugin_config_with_retry(self, max_retries: int = 3, base_delay: float = 1.0) -> Optional[PluginConfig]:
+    async def _get_plugin_config_with_retry(
+        self, max_retries: int = 3, base_delay: float = 1.0
+    ) -> Optional[PluginConfig]:
         """Retrieve plugin configuration with retry logic.
 
         Args:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/unix/test_server.py
+"""Location: ./tests/unit/cpex/framework/external/unix/test_server.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -16,14 +16,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework.models import GlobalContext, PluginContext
+
 # Check if grpc/protobuf is available
 try:
     # Third-Party
     from google.protobuf import json_format
     from google.protobuf.struct_pb2 import Struct
-    #First-Party
-    from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
-    from mcpgateway.plugins.framework.external.unix.server.server import UnixSocketPluginServer
+
+    # First-Party
+    from cpex.framework.external.grpc.proto import plugin_service_pb2
+    from cpex.framework.external.unix.server.server import UnixSocketPluginServer
 
     HAS_GRPC = True
 except ImportError:
@@ -32,9 +36,6 @@ except ImportError:
     Struct = None  # type: ignore
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed (required for protobuf)")
-
-# First-Party
-from mcpgateway.plugins.framework.models import GlobalContext, PluginContext
 
 
 @pytest.fixture
@@ -53,7 +54,7 @@ def server(tmp_path, mock_plugin_server):
     """Create a UnixSocketPluginServer for testing."""
     socket_path = str(tmp_path / "test.sock")
     srv = UnixSocketPluginServer(
-        config_path="tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml",
+        config_path="tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml",
         socket_path=socket_path,
     )
     srv._plugin_server = mock_plugin_server
@@ -190,8 +191,8 @@ class TestUnixSocketPluginServerInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_with_error(self, server, mock_plugin_server):
         """Test hook invocation error is returned in response."""
-        from mcpgateway.plugins.framework.errors import PluginError
-        from mcpgateway.plugins.framework.models import PluginErrorModel
+        from cpex.framework.errors import PluginError
+        from cpex.framework.models import PluginErrorModel
 
         mock_plugin_server.invoke_hook = AsyncMock(
             side_effect=PluginError(
@@ -295,7 +296,7 @@ class TestUnixSocketPluginServerLifecycle:
 
         try:
             server = UnixSocketPluginServer(
-                config_path="tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml",
+                config_path="tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml",
                 socket_path=socket_path,
             )
 
@@ -323,7 +324,7 @@ class TestUnixSocketPluginServerLifecycle:
 
         try:
             server = UnixSocketPluginServer(
-                config_path="tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml",
+                config_path="tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml",
                 socket_path=socket_path,
             )
 
@@ -361,7 +362,7 @@ class TestUnixSocketPluginServerLifecycle:
             assert os.path.exists(socket_path)
 
             server = UnixSocketPluginServer(
-                config_path="tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml",
+                config_path="tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml",
                 socket_path=socket_path,
             )
 
@@ -386,7 +387,7 @@ class TestUnixSocketPluginServerLifecycle:
 
         try:
             server = UnixSocketPluginServer(
-                config_path="tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml",
+                config_path="tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml",
                 socket_path=socket_path,
             )
 
@@ -430,7 +431,6 @@ class TestUnixSocketPluginServerHandleClient:
     @pytest.mark.asyncio
     async def test_handle_client_timeout(self, server, mock_plugin_server):
         """Test _handle_client handles timeout gracefully."""
-        from mcpgateway.plugins.framework.external.unix.protocol import ProtocolError
 
         server._running = True
 
@@ -441,7 +441,7 @@ class TestUnixSocketPluginServerHandleClient:
         mock_writer.wait_closed = AsyncMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.read_message",
+            "cpex.framework.external.unix.server.server.read_message",
             side_effect=asyncio.TimeoutError(),
         ):
             await server._handle_client(mock_reader, mock_writer)
@@ -460,7 +460,7 @@ class TestUnixSocketPluginServerHandleClient:
         mock_writer.wait_closed = AsyncMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.read_message",
+            "cpex.framework.external.unix.server.server.read_message",
             side_effect=asyncio.IncompleteReadError(b"", 4),
         ):
             await server._handle_client(mock_reader, mock_writer)
@@ -470,7 +470,7 @@ class TestUnixSocketPluginServerHandleClient:
     @pytest.mark.asyncio
     async def test_handle_client_protocol_error(self, server, mock_plugin_server):
         """Test _handle_client handles protocol errors."""
-        from mcpgateway.plugins.framework.external.unix.protocol import ProtocolError
+        from cpex.framework.external.unix.protocol import ProtocolError
 
         server._running = True
 
@@ -481,7 +481,7 @@ class TestUnixSocketPluginServerHandleClient:
         mock_writer.wait_closed = AsyncMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.read_message",
+            "cpex.framework.external.unix.server.server.read_message",
             side_effect=ProtocolError("Bad message"),
         ):
             await server._handle_client(mock_reader, mock_writer)
@@ -515,11 +515,11 @@ class TestUnixSocketPluginServerHandleClient:
             raise asyncio.IncompleteReadError(b"", 4)
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.read_message",
+            "cpex.framework.external.unix.server.server.read_message",
             side_effect=mock_read,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.server.server.write_message_async",
+                "cpex.framework.external.unix.server.server.write_message_async",
                 side_effect=BrokenPipeError("Broken pipe"),
             ):
                 await server._handle_client(mock_reader, mock_writer)
@@ -538,7 +538,7 @@ class TestUnixSocketPluginServerHandleClient:
         mock_writer.wait_closed = AsyncMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.read_message",
+            "cpex.framework.external.unix.server.server.read_message",
             side_effect=RuntimeError("Unexpected"),
         ):
             await server._handle_client(mock_reader, mock_writer)
@@ -595,16 +595,14 @@ class TestUnixSocketPluginServerMessageHandling:
     @pytest.mark.asyncio
     async def test_handle_invoke_hook_with_error_model(self, server, mock_plugin_server):
         """Test _handle_invoke_hook handles error as Pydantic model."""
-        from mcpgateway.plugins.framework.models import PluginErrorModel
+        from cpex.framework.models import PluginErrorModel
 
         error_model = PluginErrorModel(
             message="Model error",
             plugin_name="TestPlugin",
             code="MODEL_ERR",
         )
-        mock_plugin_server.invoke_hook = AsyncMock(
-            return_value={"error": error_model}
-        )
+        mock_plugin_server.invoke_hook = AsyncMock(return_value={"error": error_model})
 
         request = plugin_service_pb2.InvokeHookRequest()
         request.hook_type = "tool_pre_invoke"
@@ -653,9 +651,7 @@ class TestUnixSocketPluginServerMessageHandling:
     @pytest.mark.asyncio
     async def test_handle_get_plugin_config_exception(self, server, mock_plugin_server):
         """Test _handle_get_plugin_config handles exceptions."""
-        mock_plugin_server.get_plugin_config = AsyncMock(
-            side_effect=RuntimeError("DB error")
-        )
+        mock_plugin_server.get_plugin_config = AsyncMock(side_effect=RuntimeError("DB error"))
 
         request = plugin_service_pb2.GetPluginConfigRequest(name="TestPlugin")
         response_bytes = await server._handle_get_plugin_config(request)
@@ -668,9 +664,7 @@ class TestUnixSocketPluginServerMessageHandling:
     @pytest.mark.asyncio
     async def test_handle_get_plugin_configs_exception(self, server, mock_plugin_server):
         """Test _handle_get_plugin_configs handles exceptions."""
-        mock_plugin_server.get_plugin_configs = AsyncMock(
-            side_effect=RuntimeError("DB error")
-        )
+        mock_plugin_server.get_plugin_configs = AsyncMock(side_effect=RuntimeError("DB error"))
 
         request = plugin_service_pb2.GetPluginConfigsRequest()
         response_bytes = await server._handle_get_plugin_configs(request)
@@ -687,7 +681,7 @@ class TestUnixSocketRunServer:
     @pytest.mark.asyncio
     async def test_run_server_lifecycle(self, tmp_path):
         """Test run_server starts server and waits for signal."""
-        from mcpgateway.plugins.framework.external.unix.server.server import run_server
+        from cpex.framework.external.unix.server.server import run_server
 
         socket_path = str(tmp_path / "test.sock")
 
@@ -699,11 +693,11 @@ class TestUnixSocketRunServer:
         stop_event.set()  # Immediately signal to stop
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.server.UnixSocketPluginServer",
+            "cpex.framework.external.unix.server.server.UnixSocketPluginServer",
             return_value=mock_server,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.server.server.asyncio.Event",
+                "cpex.framework.external.unix.server.server.asyncio.Event",
                 return_value=stop_event,
             ):
                 with patch("builtins.print"):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/test_tls_utils.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/test_tls_utils.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -14,6 +14,9 @@ from unittest.mock import MagicMock, patch
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework.models import GRPCClientTLSConfig, GRPCServerTLSConfig
+
 # Check if grpc is available
 try:
     import grpc  # noqa: F401
@@ -24,16 +27,13 @@ except ImportError:
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed")
 
-# First-Party
-from mcpgateway.plugins.framework.models import GRPCClientTLSConfig, GRPCServerTLSConfig
-
 
 class TestReadFile:
     """Tests for the _read_file helper function."""
 
     def test_read_file_success(self, tmp_path):
         """Test reading a file successfully."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import _read_file
+        from cpex.framework.external.grpc.tls_utils import _read_file
 
         test_file = tmp_path / "test.txt"
         test_content = b"test content"
@@ -44,14 +44,14 @@ class TestReadFile:
 
     def test_read_file_not_found(self):
         """Test reading a non-existent file raises FileNotFoundError."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import _read_file
+        from cpex.framework.external.grpc.tls_utils import _read_file
 
         with pytest.raises(FileNotFoundError):
             _read_file("/nonexistent/path/file.txt")
 
     def test_read_file_binary_content(self, tmp_path):
         """Test reading binary content."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import _read_file
+        from cpex.framework.external.grpc.tls_utils import _read_file
 
         test_file = tmp_path / "binary.bin"
         binary_content = bytes(range(256))
@@ -66,7 +66,7 @@ class TestCreateClientCredentials:
 
     def test_minimal_config(self):
         """Test creating credentials with minimal config."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials
 
         config = GRPCClientTLSConfig(verify=True)
 
@@ -79,7 +79,7 @@ class TestCreateClientCredentials:
 
     def test_with_ca_bundle(self, tmp_path):
         """Test creating credentials with CA bundle."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials
 
         ca_file = tmp_path / "ca.pem"
         ca_file.write_bytes(b"CA CERTIFICATE")
@@ -95,7 +95,7 @@ class TestCreateClientCredentials:
 
     def test_with_client_certificates(self, tmp_path):
         """Test creating credentials with client certificates (mTLS)."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials
 
         cert_file = tmp_path / "client.pem"
         key_file = tmp_path / "client-key.pem"
@@ -118,7 +118,7 @@ class TestCreateClientCredentials:
 
     def test_verify_disabled(self):
         """Test creating credentials with verification disabled."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials
 
         config = GRPCClientTLSConfig(verify=False)
 
@@ -132,7 +132,7 @@ class TestCreateClientCredentials:
 
     def test_full_mtls_config(self, tmp_path):
         """Test creating credentials with full mTLS configuration."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials
 
         ca_file = tmp_path / "ca.pem"
         cert_file = tmp_path / "client.pem"
@@ -186,7 +186,7 @@ class TestCreateServerCredentials:
 
     def test_basic_tls_config(self, tmp_path):
         """Test creating server credentials with basic TLS."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_server_credentials
+        from cpex.framework.external.grpc.tls_utils import create_server_credentials
 
         cert_file = tmp_path / "server.pem"
         key_file = tmp_path / "server-key.pem"
@@ -209,7 +209,7 @@ class TestCreateServerCredentials:
 
     def test_mtls_config_require(self, tmp_path):
         """Test creating server credentials with mTLS (client auth required)."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_server_credentials
+        from cpex.framework.external.grpc.tls_utils import create_server_credentials
 
         cert_file = tmp_path / "server.pem"
         key_file = tmp_path / "server-key.pem"
@@ -235,7 +235,7 @@ class TestCreateServerCredentials:
 
     def test_mtls_config_optional(self, tmp_path):
         """Test creating server credentials with optional client auth."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_server_credentials
+        from cpex.framework.external.grpc.tls_utils import create_server_credentials
 
         cert_file = tmp_path / "server.pem"
         key_file = tmp_path / "server-key.pem"
@@ -300,7 +300,7 @@ class TestCreateInsecureChannel:
 
     def test_creates_insecure_channel(self):
         """Test creating an insecure channel."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_insecure_channel
+        from cpex.framework.external.grpc.tls_utils import create_insecure_channel
 
         with patch("grpc.aio.insecure_channel") as mock_channel:
             mock_channel.return_value = MagicMock()
@@ -311,11 +311,11 @@ class TestCreateInsecureChannel:
 
     def test_logs_warning(self):
         """Test that creating insecure channel logs a warning."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_insecure_channel
+        from cpex.framework.external.grpc.tls_utils import create_insecure_channel
 
         with patch("grpc.aio.insecure_channel") as mock_channel:
             mock_channel.return_value = MagicMock()
-            with patch("mcpgateway.plugins.framework.external.grpc.tls_utils.logger") as mock_logger:
+            with patch("cpex.framework.external.grpc.tls_utils.logger") as mock_logger:
                 create_insecure_channel("localhost:50051")
                 mock_logger.warning.assert_called()
 
@@ -325,7 +325,7 @@ class TestCreateSecureChannel:
 
     def test_creates_secure_channel(self, tmp_path):
         """Test creating a secure channel."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_secure_channel
+        from cpex.framework.external.grpc.tls_utils import create_secure_channel
 
         ca_file = tmp_path / "ca.pem"
         ca_file.write_bytes(b"CA CERT")
@@ -344,7 +344,7 @@ class TestCreateSecureChannel:
 
     def test_passes_credentials(self):
         """Test that credentials are passed to secure_channel."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_secure_channel
+        from cpex.framework.external.grpc.tls_utils import create_secure_channel
 
         config = GRPCClientTLSConfig(verify=True)
 
@@ -363,14 +363,14 @@ class TestCreateSecureChannel:
 
     def test_logs_info(self):
         """Test that creating secure channel logs info."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_secure_channel
+        from cpex.framework.external.grpc.tls_utils import create_secure_channel
 
         config = GRPCClientTLSConfig(verify=True)
 
         with patch("grpc.aio.secure_channel") as mock_channel:
             with patch("grpc.ssl_channel_credentials"):
                 mock_channel.return_value = MagicMock()
-                with patch("mcpgateway.plugins.framework.external.grpc.tls_utils.logger") as mock_logger:
+                with patch("cpex.framework.external.grpc.tls_utils.logger") as mock_logger:
                     create_secure_channel("localhost:50051", config, "TestPlugin")
                     mock_logger.info.assert_called()
 
@@ -380,7 +380,7 @@ class TestTLSUtilsIntegration:
 
     def test_client_credentials_chain(self, tmp_path):
         """Test full chain of creating client credentials and channel."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_client_credentials, create_secure_channel
+        from cpex.framework.external.grpc.tls_utils import create_client_credentials, create_secure_channel
 
         ca_file = tmp_path / "ca.pem"
         cert_file = tmp_path / "client.pem"
@@ -411,7 +411,7 @@ class TestTLSUtilsIntegration:
 
     def test_server_credentials_all_client_auth_modes(self, tmp_path):
         """Test server credentials with all client auth modes."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_server_credentials
+        from cpex.framework.external.grpc.tls_utils import create_server_credentials
 
         cert_file = tmp_path / "server.pem"
         key_file = tmp_path / "server-key.pem"
@@ -434,7 +434,7 @@ class TestTLSUtilsIntegration:
 
     def test_missing_certfile_raises_value_error(self):
         """Test create_server_credentials raises ValueError when certfile is missing."""
-        from mcpgateway.plugins.framework.external.grpc.tls_utils import create_server_credentials
+        from cpex.framework.external.grpc.tls_utils import create_server_credentials
 
         config = GRPCServerTLSConfig(client_auth="none")
         assert config.certfile is None

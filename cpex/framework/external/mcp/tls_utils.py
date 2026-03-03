@@ -187,16 +187,22 @@ def create_ssl_context(tls_config: MCPClientTLSConfig, plugin_name: str) -> ssl.
         # - Certificate signature validation
         # - Certificate chain validation up to trusted CA
         # - Automatic expiration checking (notBefore/notAfter per RFC 5280)
-        ssl_context = ssl.create_default_context()  # NOSONAR as this will fail check_hostname from NOT tls_config.verify
+        ssl_context = (
+            ssl.create_default_context()
+        )  # NOSONAR as this will fail check_hostname from NOT tls_config.verify
 
         # Enforce TLS 1.2 or higher for security
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
         if not tls_config.verify:
             # Disable certificate verification (not recommended for production)
-            logger.warning(f"Certificate verification disabled for plugin '{plugin_name}'. This is not recommended for production use.")
+            logger.warning(
+                f"Certificate verification disabled for plugin '{plugin_name}'. This is not recommended for production use."
+            )
             ssl_context.check_hostname = False  # NOSONAR as this is specifically NOT tls_config.verify
-            ssl_context.verify_mode = ssl.CERT_NONE  # nosec B502  # noqa: DUO122  # NOSONAR as this is specifically NOT tls_config.verify
+            ssl_context.verify_mode = (
+                ssl.CERT_NONE
+            )  # nosec B502  # noqa: DUO122  # NOSONAR as this is specifically NOT tls_config.verify
         else:
             # Enable strict certificate verification (production mode)
             # Load CA certificate bundle for server certificate validation
@@ -212,7 +218,9 @@ def create_ssl_context(tls_config: MCPClientTLSConfig, plugin_name: str) -> ssl.
             # Hostname verification
             # When enabled, certificate's SAN or CN must match the server hostname
             if not tls_config.check_hostname:
-                logger.warning(f"Hostname verification disabled for plugin '{plugin_name}'. This increases risk of MITM attacks.")
+                logger.warning(
+                    f"Hostname verification disabled for plugin '{plugin_name}'. This increases risk of MITM attacks."
+                )
                 ssl_context.check_hostname = False
 
         # Load client certificate for mTLS (mutual authentication)

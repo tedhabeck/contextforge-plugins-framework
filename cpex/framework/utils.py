@@ -102,12 +102,16 @@ def coerce_nested(v: Any, *, _depth: int = 0) -> Any:
         return v
     if isinstance(v, dict):
         if len(v) > _COERCE_MAX_BREADTH:
-            logger.warning("coerce_nested: dict has %d keys (limit %d); returning as plain dict", len(v), _COERCE_MAX_BREADTH)
+            logger.warning(
+                "coerce_nested: dict has %d keys (limit %d); returning as plain dict", len(v), _COERCE_MAX_BREADTH
+            )
             return v
         return StructuredData(**{k: coerce_nested(val, _depth=_depth + 1) for k, val in v.items()})
     if isinstance(v, list):
         if len(v) > _COERCE_MAX_BREADTH:
-            logger.warning("coerce_nested: list has %d items (limit %d); skipping coercion", len(v), _COERCE_MAX_BREADTH)
+            logger.warning(
+                "coerce_nested: list has %d items (limit %d); skipping coercion", len(v), _COERCE_MAX_BREADTH
+            )
             return v
         return [coerce_nested(item, _depth=_depth + 1) for item in v]
     return v

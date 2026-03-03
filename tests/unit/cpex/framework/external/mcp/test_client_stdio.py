@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/test_client_stdio.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/test_client_stdio.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
 
 Tests for external client on stdio.
 """
+
 # Standard
 from contextlib import AsyncExitStack
 import json
@@ -14,14 +15,15 @@ import re
 import sys
 from typing import Optional
 
+from types import SimpleNamespace
+
 # Third-Party
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, ResourceContent, Role, TextContent
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     ConfigLoader,
     GlobalContext,
     PluginConfig,
@@ -44,14 +46,18 @@ from plugins.regex_filter.search_replace import SearchReplaceConfig
 
 @pytest.mark.asyncio
 async def test_client_load_stdio():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
     os.environ["PYTHONPATH"] = "."
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
 
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
     prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"text": "That was innovative!"})
-    result = await plugin.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, PluginContext(global_context=GlobalContext(request_id="1", server_id="2")))
+    result = await plugin.invoke_hook(
+        PromptHookType.PROMPT_PRE_FETCH,
+        prompt,
+        PluginContext(global_context=GlobalContext(request_id="1", server_id="2")),
+    )
     assert result.violation
     assert result.violation.reason == "Prompt not allowed"
     assert result.violation.description == "A deny word was found in the prompt"
@@ -65,17 +71,22 @@ async def test_client_load_stdio():
     del os.environ["PLUGINS_CONFIG_PATH"]
     del os.environ["PYTHONPATH"]
 
+
 @pytest.mark.slow  # Spawns real stdio subprocess - inherently slow
 @pytest.mark.asyncio
 async def test_client_load_stdio_overrides():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
     os.environ["PYTHONPATH"] = "."
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin_overrides.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin_overrides.yaml")
 
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
-    prompt = PromptPrehookPayload(prompt_id="test_prompt", args = {"text": "That was innovative!"})
-    result = await plugin.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, PluginContext(global_context=GlobalContext(request_id="1", server_id="2")))
+    prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"text": "That was innovative!"})
+    result = await plugin.invoke_hook(
+        PromptHookType.PROMPT_PRE_FETCH,
+        prompt,
+        PluginContext(global_context=GlobalContext(request_id="1", server_id="2")),
+    )
     assert result.violation
     assert result.violation.reason == "Prompt not allowed"
     assert result.violation.description == "A deny word was found in the prompt"
@@ -91,15 +102,16 @@ async def test_client_load_stdio_overrides():
     del os.environ["PLUGINS_CONFIG_PATH"]
     del os.environ["PYTHONPATH"]
 
+
 @pytest.mark.asyncio
 async def test_client_load_stdio_post_prompt():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     os.environ["PYTHONPATH"] = "."
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin_regex.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin_regex.yaml")
 
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
-    prompt = PromptPrehookPayload(prompt_id="test_prompt", args = {"user": "What a crapshow!"})
+    prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"user": "What a crapshow!"})
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
     result = await plugin.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, context)
     assert result.modified_payload.args["user"] == "What a yikesshow!"
@@ -109,8 +121,8 @@ async def test_client_load_stdio_post_prompt():
     assert config.priority == 150
     assert config.kind == "external"
 
-    message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-    prompt_result = PromptResult(messages=[message])
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+    prompt_result = SimpleNamespace(messages=[message])
 
     payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
@@ -122,14 +134,17 @@ async def test_client_load_stdio_post_prompt():
     del os.environ["PLUGINS_CONFIG_PATH"]
     del os.environ["PYTHONPATH"]
 
+
 @pytest.mark.asyncio
 async def test_client_get_plugin_configs():
     session: Optional[ClientSession] = None
     exit_stack = AsyncExitStack()
     current_env = os.environ.copy()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins.yaml"
     current_env["PYTHONPATH"] = "."
-    server_params = StdioServerParameters(command=sys.executable, args=["mcpgateway/plugins/framework/external/mcp/server/runtime.py"], env=current_env)
+    server_params = StdioServerParameters(
+        command=sys.executable, args=["mcpgateway/plugins/framework/external/mcp/server/runtime.py"], env=current_env
+    )
 
     stdio_transport = await exit_stack.enter_async_context(stdio_client(server_params))
     stdio, write = stdio_transport
@@ -175,24 +190,29 @@ async def test_client_get_plugin_configs():
     assert srconfig.words[0].replace == "crud"
     assert len(all_configs) == 2
 
+
 @pytest.mark.asyncio
 async def test_hooks():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin_passthrough.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin_passthrough.yaml"
     os.environ["PYTHONPATH"] = "."
     pm = PluginManager()
     if pm.initialized:
         await pm.shutdown()
-    plugin_manager = PluginManager(config="tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin_passthrough.yaml")
+    plugin_manager = PluginManager(
+        config="tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin_passthrough.yaml"
+    )
     await plugin_manager.initialize()
-    payload = PromptPrehookPayload(prompt_id="test_prompt", name="test_prompt", args={"arg0": "This is a crap argument"})
+    payload = PromptPrehookPayload(
+        prompt_id="test_prompt", name="test_prompt", args={"arg0": "This is a crap argument"}
+    )
     global_context = GlobalContext(request_id="1")
     result, _ = await plugin_manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
     # Assert expected behaviors
     assert result.continue_processing
     """Test prompt post hook across all registered plugins."""
     # Customize payload for testing
-    message = Message(content=TextContent(type="text", text="prompt"), role=Role.USER)
-    prompt_result = PromptResult(messages=[message])
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="prompt"), role="user")
+    prompt_result = SimpleNamespace(messages=[message])
     payload = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
     result, _ = await plugin_manager.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload, global_context)
     # Assert expected behaviors
@@ -215,22 +235,24 @@ async def test_hooks():
     # Assert expected behaviors
     assert result.continue_processing
 
-    content = ResourceContent(type="resource", id="123", uri="file:///data.txt",
-           text="Hello World")
+    content = SimpleNamespace(type="resource", id="123", uri="file:///data.txt", text="Hello World")
     payload = ResourcePostFetchPayload(uri="file:///data.txt", content=content)
     result, _ = await plugin_manager.invoke_hook(ResourceHookType.RESOURCE_POST_FETCH, payload, global_context)
     # Assert expected behaviors
     assert result.continue_processing
     await plugin_manager.shutdown()
 
+
 @pytest.mark.slow  # Spawns real stdio subprocess - inherently slow
 @pytest.mark.asyncio
 async def test_errors():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/error_plugin.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/error_plugin.yaml"
     os.environ["PYTHONPATH"] = "."
-    plugin_manager = PluginManager(config="tests/unit/mcpgateway/plugins/fixtures/configs/error_stdio_external_plugin.yaml")
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/error_stdio_external_plugin.yaml")
     await plugin_manager.initialize()
-    payload = PromptPrehookPayload(prompt_id="test_prompt", name="test_prompt", args={"arg0": "This is a crap argument"})
+    payload = PromptPrehookPayload(
+        prompt_id="test_prompt", name="test_prompt", args={"arg0": "This is a crap argument"}
+    )
     global_context = GlobalContext(request_id="1")
     escaped_regex = re.escape("ValueError('Sadly! Prompt prefetch is broken!')")
     with pytest.raises(PluginError, match=escaped_regex):
@@ -242,16 +264,18 @@ async def test_errors():
 @pytest.mark.slow  # Spawns real stdio subprocesses - inherently slow
 @pytest.mark.asyncio
 async def test_shared_context_across_pre_post_hooks_multi_plugins():
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/context_multiplugins.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/context_multiplugins.yaml"
     os.environ["PYTHONPATH"] = "."
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/context_stdio_external_plugins.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/context_stdio_external_plugins.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with transformation - use correct tool name from config
     tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     assert len(contexts) == 2
     ctxs = [contexts[key] for key in contexts.keys()]
@@ -279,8 +303,12 @@ async def test_shared_context_across_pre_post_hooks_multi_plugins():
     assert result.continue_processing
     assert result.modified_payload is None
     # Test tool post-invoke with transformation
-    tool_result_payload = ToolPostInvokePayload(name="test_tool", result={"output": "Result was bad", "status": "wrong format"})
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts)
+    tool_result_payload = ToolPostInvokePayload(
+        name="test_tool", result={"output": "Result was bad", "status": "wrong format"}
+    )
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts
+    )
 
     ctxs = [contexts[key] for key in contexts.keys()]
     assert len(ctxs) == 2

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_memory.py
+"""Location: ./tests/unit/cpex/framework/test_memory.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -11,7 +11,7 @@ Tests for memory module.
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.memory import copyonwrite, CopyOnWriteDict
+from cpex.framework.memory import copyonwrite, CopyOnWriteDict
 
 
 class TestCopyOnWriteDict:

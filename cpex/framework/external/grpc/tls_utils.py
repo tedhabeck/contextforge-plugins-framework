@@ -184,7 +184,9 @@ def create_insecure_channel(target: str) -> grpc.aio.Channel:
     return grpc.aio.insecure_channel(target)
 
 
-def create_secure_channel(target: str, tls_config: GRPCClientTLSConfig, plugin_name: str = "unknown") -> grpc.aio.Channel:
+def create_secure_channel(
+    target: str, tls_config: GRPCClientTLSConfig, plugin_name: str = "unknown"
+) -> grpc.aio.Channel:
     """Create a secure gRPC channel with TLS.
 
     Args:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for mcpgateway.plugins.framework.base."""
+"""Tests for cpex.framework.base."""
 
 # Standard
 from unittest.mock import MagicMock
@@ -9,10 +9,10 @@ import pytest
 from pydantic import BaseModel
 
 # First-Party
-from mcpgateway.plugins.framework.base import Plugin
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.models import PluginConfig, PluginResult
-from mcpgateway.plugins.framework.hooks import registry as hook_registry
+from cpex.framework.base import Plugin
+from cpex.framework.errors import PluginError
+from cpex.framework.models import PluginConfig, PluginResult
+from cpex.framework.hooks import registry as hook_registry
 
 
 class DummyPayload(BaseModel):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/test_client.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/test_client.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -14,12 +14,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework import ToolPreInvokePayload, PluginError
+from cpex.framework.models import (
+    GlobalContext,
+    GRPCClientConfig,
+    PluginConfig,
+    PluginContext,
+)
+
 # Check if grpc is available
 try:
     import grpc
     from google.protobuf import json_format
     from google.protobuf.struct_pb2 import Struct
-    from mcpgateway.plugins.framework.external.grpc.client import GrpcExternalPlugin
+    from cpex.framework.external.grpc.client import GrpcExternalPlugin
 
     HAS_GRPC = True
 except ImportError:
@@ -29,16 +38,6 @@ except ImportError:
     Struct = None  # type: ignore
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed")
-
-# First-Party
-from mcpgateway.plugins.framework import ToolPreInvokePayload
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.models import (
-    GlobalContext,
-    GRPCClientConfig,
-    PluginConfig,
-    PluginContext,
-)
 
 
 @pytest.fixture
@@ -123,11 +122,11 @@ class TestGrpcExternalPluginInitialize:
         mock_stub.GetPluginConfig = AsyncMock(return_value=mock_response)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_insecure_channel",
+            "cpex.framework.external.grpc.client.create_insecure_channel",
             return_value=mock_channel,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
+                "cpex.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
                 return_value=mock_stub,
             ):
                 await plugin.initialize()
@@ -138,7 +137,7 @@ class TestGrpcExternalPluginInitialize:
     @pytest.mark.asyncio
     async def test_initialize_with_tls(self, mock_plugin_config):
         """Test initialize creates secure channel when TLS is configured."""
-        from mcpgateway.plugins.framework.models import GRPCClientTLSConfig
+        from cpex.framework.models import GRPCClientTLSConfig
 
         mock_plugin_config.grpc.tls = GRPCClientTLSConfig(verify=True)
         plugin = GrpcExternalPlugin(mock_plugin_config)
@@ -149,16 +148,18 @@ class TestGrpcExternalPluginInitialize:
         mock_response = MagicMock()
         mock_response.found = True
         config_struct = Struct()
-        json_format.ParseDict({"name": "TestGrpcPlugin", "kind": "test.plugin.TestPlugin", "hooks": ["tool_pre_invoke"]}, config_struct)
+        json_format.ParseDict(
+            {"name": "TestGrpcPlugin", "kind": "test.plugin.TestPlugin", "hooks": ["tool_pre_invoke"]}, config_struct
+        )
         mock_response.config = config_struct
         mock_stub.GetPluginConfig = AsyncMock(return_value=mock_response)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_secure_channel",
+            "cpex.framework.external.grpc.client.create_secure_channel",
             return_value=mock_channel,
         ) as mock_create_secure:
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
+                "cpex.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
                 return_value=mock_stub,
             ):
                 await plugin.initialize()
@@ -176,16 +177,18 @@ class TestGrpcExternalPluginInitialize:
         mock_response = MagicMock()
         mock_response.found = True
         config_struct = Struct()
-        json_format.ParseDict({"name": "TestGrpcUdsPlugin", "kind": "test.plugin.TestPlugin", "hooks": ["tool_pre_invoke"]}, config_struct)
+        json_format.ParseDict(
+            {"name": "TestGrpcUdsPlugin", "kind": "test.plugin.TestPlugin", "hooks": ["tool_pre_invoke"]}, config_struct
+        )
         mock_response.config = config_struct
         mock_stub.GetPluginConfig = AsyncMock(return_value=mock_response)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_insecure_channel",
+            "cpex.framework.external.grpc.client.create_insecure_channel",
             return_value=mock_channel,
         ) as mock_create_insecure:
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
+                "cpex.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
                 return_value=mock_stub,
             ):
                 await plugin.initialize()
@@ -210,11 +213,11 @@ class TestGrpcExternalPluginInitialize:
         mock_stub.GetPluginConfig = AsyncMock(return_value=mock_response)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_insecure_channel",
+            "cpex.framework.external.grpc.client.create_insecure_channel",
             return_value=mock_channel,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
+                "cpex.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
                 return_value=mock_stub,
             ):
                 with pytest.raises(PluginError, match="Unable to retrieve configuration"):
@@ -230,11 +233,11 @@ class TestGrpcExternalPluginInitialize:
         mock_stub.GetPluginConfig = AsyncMock(side_effect=grpc.RpcError())
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_insecure_channel",
+            "cpex.framework.external.grpc.client.create_insecure_channel",
             return_value=mock_channel,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
+                "cpex.framework.external.grpc.client.plugin_service_pb2_grpc.PluginServiceStub",
                 return_value=mock_stub,
             ):
                 with patch("asyncio.sleep", new_callable=AsyncMock):
@@ -330,7 +333,7 @@ class TestGrpcExternalPluginInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_updates_context(self, initialized_plugin):
         """Test invoke_hook updates context from response."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         mock_response = MagicMock()
 
@@ -480,7 +483,7 @@ class TestGrpcExternalPluginInitializeGenericError:
         plugin = GrpcExternalPlugin(mock_plugin_config)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.client.create_insecure_channel",
+            "cpex.framework.external.grpc.client.create_insecure_channel",
             side_effect=ValueError("bad channel config"),
         ):
             with pytest.raises(PluginError):

@@ -156,7 +156,12 @@ class PluginResultBase(_message.Message):
     continue_processing: bool
     violation: PluginViolation
     metadata: _struct_pb2.Struct
-    def __init__(self, continue_processing: bool = ..., violation: _Optional[_Union[PluginViolation, _Mapping]] = ..., metadata: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        continue_processing: bool = ...,
+        violation: _Optional[_Union[PluginViolation, _Mapping]] = ...,
+        metadata: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...,
+    ) -> None: ...
 
 class PluginError(_message.Message):
     __slots__ = ("message", "plugin_name", "code", "details", "mcp_error_code")

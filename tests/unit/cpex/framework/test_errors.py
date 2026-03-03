@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_errors.py
+"""Location: ./tests/unit/cpex/framework/test_errors.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
@@ -10,15 +10,8 @@ Tests for errors module.
 # Third-Party
 import pytest
 import re
-from mcpgateway.plugins.framework.errors import convert_exception_to_error
-from mcpgateway.plugins.framework import (
-    GlobalContext,
-    PluginError,
-    PluginMode,
-    PluginManager,
-    PromptHookType,
-    PromptPrehookPayload
-)
+from cpex.framework.errors import convert_exception_to_error
+from cpex.framework import GlobalContext, PluginError, PluginMode, PluginManager, PromptHookType, PromptPrehookPayload
 
 
 @pytest.mark.asyncio
@@ -35,7 +28,7 @@ async def test_convert_exception_to_error():
 
 @pytest.mark.asyncio
 async def test_error_plugin():
-    plugin_manager = PluginManager(config="tests/unit/mcpgateway/plugins/fixtures/configs/error_plugin.yaml")
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/error_plugin.yaml")
     await plugin_manager.initialize()
     payload = PromptPrehookPayload(prompt_id="test_prompt", args={"arg0": "This is a crap argument"})
     global_context = GlobalContext(request_id="1")
@@ -47,7 +40,7 @@ async def test_error_plugin():
 
 
 async def test_error_plugin_raise_error_false():
-    plugin_manager = PluginManager(config="tests/unit/mcpgateway/plugins/fixtures/configs/error_plugin_raise_error_false.yaml")
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/error_plugin_raise_error_false.yaml")
     await plugin_manager.initialize()
     payload = PromptPrehookPayload(prompt_id="test_prompt", args={"arg0": "This is a crap argument"})
     global_context = GlobalContext(request_id="1")

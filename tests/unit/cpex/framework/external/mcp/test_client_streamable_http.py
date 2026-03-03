@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/test_client_streamable_http.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/test_client_streamable_http.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
@@ -15,12 +15,21 @@ import subprocess
 import sys
 import time
 
+from types import SimpleNamespace
+
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import ConfigLoader, GlobalContext, PluginContext, PluginLoader, PromptHookType, PromptPosthookPayload, PromptPrehookPayload
+from cpex.framework import (
+    ConfigLoader,
+    GlobalContext,
+    PluginContext,
+    PluginLoader,
+    PromptHookType,
+    PromptPosthookPayload,
+    PromptPrehookPayload,
+)
 
 
 def _wait_for_port(host: str, port: int, timeout: float = 10.0, proc: subprocess.Popen | None = None) -> None:
@@ -69,7 +78,7 @@ def _get_free_port() -> int:
 def _disable_ssrf_for_local_tests(monkeypatch):
     """Disable SSRF IP blocking so tests can use 127.0.0.1 for real local servers."""
     monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "false")
-    from mcpgateway.plugins.framework.settings import settings  # pylint: disable=import-outside-toplevel
+    from cpex.framework.settings import settings  # pylint: disable=import-outside-toplevel
 
     settings.cache_clear()
     yield
@@ -80,7 +89,7 @@ def _disable_ssrf_for_local_tests(monkeypatch):
 def server_proc():
     current_env = os.environ.copy()
     port = _get_free_port()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "http"
     current_env["PLUGINS_SERVER_HOST"] = "127.0.0.1"
@@ -88,7 +97,12 @@ def server_proc():
     current_env["PLUGINS_SSRF_PROTECTION_ENABLED"] = "false"
     # Start the server as a subprocess
     try:
-        with subprocess.Popen([sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=current_env) as server_proc:
+        with subprocess.Popen(
+            [sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=current_env,
+        ) as server_proc:
             _wait_for_port("127.0.0.1", port, proc=server_proc)
             yield server_proc, port
             server_proc.terminate()
@@ -103,7 +117,7 @@ async def test_client_load_streamable_http(server_proc):
     server_proc, port = server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
     config.plugins[0].mcp.url = f"http://127.0.0.1:{port}/mcp"
 
     loader = PluginLoader()
@@ -118,8 +132,8 @@ async def test_client_load_streamable_http(server_proc):
         assert config.description == "A plugin for finding and replacing words."
         assert config.priority == 150
         assert config.kind == "external"
-        message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
 
         payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
@@ -135,14 +149,19 @@ async def test_client_load_streamable_http(server_proc):
 def server_proc1():
     current_env = os.environ.copy()
     port = _get_free_port()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "http"
     current_env["PLUGINS_SERVER_HOST"] = "127.0.0.1"
     current_env["PLUGINS_SERVER_PORT"] = str(port)
     # Start the server as a subprocess
     try:
-        with subprocess.Popen([sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=current_env) as server_proc:
+        with subprocess.Popen(
+            [sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=current_env,
+        ) as server_proc:
             _wait_for_port("127.0.0.1", port, proc=server_proc)
             yield server_proc, port
             server_proc.terminate()
@@ -157,14 +176,18 @@ async def test_client_load_strhttp_overrides(server_proc1):
     server_proc1, port = server_proc1
     assert not server_proc1.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_strhttp_external_plugin_overrides.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_strhttp_external_plugin_overrides.yaml")
     config.plugins[0].mcp.url = f"http://127.0.0.1:{port}/mcp"
 
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
     try:
         prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"text": "That was innovative!"})
-        result = await plugin.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, PluginContext(global_context=GlobalContext(request_id="1", server_id="2")))
+        result = await plugin.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH,
+            prompt,
+            PluginContext(global_context=GlobalContext(request_id="1", server_id="2")),
+        )
         assert result.violation
         assert result.violation.reason == "Prompt not allowed"
         assert result.violation.description == "A deny word was found in the prompt"
@@ -185,14 +208,19 @@ async def test_client_load_strhttp_overrides(server_proc1):
 def server_proc2():
     current_env = os.environ.copy()
     port = _get_free_port()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "http"
     current_env["PLUGINS_SERVER_HOST"] = "127.0.0.1"
     current_env["PLUGINS_SERVER_PORT"] = str(port)
     # Start the server as a subprocess
     try:
-        with subprocess.Popen([sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=current_env) as server_proc:
+        with subprocess.Popen(
+            [sys.executable, "mcpgateway/plugins/framework/external/mcp/server/runtime.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=current_env,
+        ) as server_proc:
             _wait_for_port("127.0.0.1", port, proc=server_proc)
             yield server_proc, port
             server_proc.terminate()
@@ -212,7 +240,7 @@ def server_proc_uds():
     uds_path = f"/tmp/mcp-{short_id}.sock"
 
     current_env = os.environ.copy()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "http"
     current_env["PLUGINS_SERVER_UDS"] = uds_path
@@ -253,7 +281,7 @@ async def test_client_load_strhttp_post_prompt(server_proc2):
     server_proc2, port = server_proc2
     assert not server_proc2.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
     config.plugins[0].mcp.url = f"http://127.0.0.1:{port}/mcp"
 
     loader = PluginLoader()
@@ -269,8 +297,8 @@ async def test_client_load_strhttp_post_prompt(server_proc2):
         assert config.priority == 150
         assert config.kind == "external"
 
-        message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
 
         payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
@@ -288,7 +316,7 @@ async def test_client_load_streamable_http_uds(server_proc_uds):
     server_proc, uds_path = server_proc_uds
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_strhttp_external_plugin_regex.yaml")
     config.plugins[0].mcp.uds = uds_path
     config.plugins[0].mcp.url = "http://localhost/mcp"
 

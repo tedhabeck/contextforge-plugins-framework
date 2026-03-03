@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/unix/test_client_integration.py
+"""Location: ./tests/unit/cpex/framework/external/unix/test_client_integration.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -16,8 +16,22 @@ import sys
 import time
 import uuid
 
+from types import SimpleNamespace
+
 # Third-Party
 import pytest
+
+# First-Party
+from cpex.framework import (
+    ConfigLoader,
+    GlobalContext,
+    PluginContext,
+    PluginLoader,
+    PluginManager,
+    PromptHookType,
+    PromptPosthookPayload,
+    PromptPrehookPayload,
+)
 
 # Check if grpc/protobuf is available (Unix socket uses protobuf from grpc package)
 try:
@@ -28,19 +42,6 @@ except ImportError:
     HAS_GRPC = False
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed (required for protobuf)")
-
-# First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import (
-    ConfigLoader,
-    GlobalContext,
-    PluginContext,
-    PluginLoader,
-    PluginManager,
-    PromptHookType,
-    PromptPosthookPayload,
-    PromptPrehookPayload,
-)
 
 
 def _wait_for_socket(path: str, timeout: float = 15.0, proc: subprocess.Popen | None = None) -> None:
@@ -71,14 +72,14 @@ def unix_server_proc():
     socket_path = f"/tmp/unix-test-{short_id}.sock"
 
     current_env = os.environ.copy()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "unix"
     current_env["PLUGINS_UNIX_SOCKET_PATH"] = socket_path
 
     try:
         with subprocess.Popen(
-            [sys.executable, "mcpgateway/plugins/framework/external/unix/server/runtime.py"],
+            [sys.executable, "cpex/framework/external/unix/server/runtime.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=current_env,
@@ -102,7 +103,7 @@ async def test_unix_client_invoke_hook(unix_server_proc):
     server_proc, socket_path = unix_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_unix_external_plugin.yaml")
     config.plugins[0].unix_socket.path = socket_path
 
     loader = PluginLoader()
@@ -130,7 +131,7 @@ async def test_unix_client_post_hook(unix_server_proc):
     server_proc, socket_path = unix_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_unix_external_plugin.yaml")
     config.plugins[0].unix_socket.path = socket_path
 
     loader = PluginLoader()
@@ -139,8 +140,8 @@ async def test_unix_client_post_hook(unix_server_proc):
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
         # Test prompt_post_fetch hook
-        message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
         result = await plugin.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload_result, context)
@@ -160,7 +161,7 @@ async def test_unix_client_multiple_calls(unix_server_proc):
     server_proc, socket_path = unix_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_unix_external_plugin.yaml")
     config.plugins[0].unix_socket.path = socket_path
 
     loader = PluginLoader()
@@ -185,7 +186,7 @@ async def test_unix_client_context_propagation(unix_server_proc):
     server_proc, socket_path = unix_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_unix_external_plugin.yaml")
     config.plugins[0].unix_socket.path = socket_path
 
     loader = PluginLoader()
@@ -217,7 +218,7 @@ async def test_unix_client_high_throughput(unix_server_proc):
     server_proc, socket_path = unix_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_unix_external_plugin.yaml")
     config.plugins[0].unix_socket.path = socket_path
 
     loader = PluginLoader()
@@ -250,14 +251,14 @@ async def test_unix_client_high_throughput(unix_server_proc):
 # =============================================================================
 
 # Fixed socket path for PluginManager tests (matches valid_unix_external_plugin_manager.yaml)
-PLUGIN_MANAGER_SOCKET_PATH = "/tmp/mcpgateway-pm-test.sock"
+PLUGIN_MANAGER_SOCKET_PATH = "/tmp/cpex-pm-test.sock"
 
 
 @pytest.fixture
 def unix_server_proc_for_manager():
     """Start a Unix socket plugin server on the fixed path for PluginManager tests."""
     current_env = os.environ.copy()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "unix"
     current_env["PLUGINS_UNIX_SOCKET_PATH"] = PLUGIN_MANAGER_SOCKET_PATH
@@ -268,7 +269,7 @@ def unix_server_proc_for_manager():
 
     try:
         with subprocess.Popen(
-            [sys.executable, "mcpgateway/plugins/framework/external/unix/server/runtime.py"],
+            [sys.executable, "cpex/framework/external/unix/server/runtime.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=current_env,
@@ -295,9 +296,7 @@ async def test_unix_plugin_manager_invoke_hook(unix_server_proc_for_manager):
     # Reset PluginManager singleton state
     PluginManager.reset()
 
-    plugin_manager = PluginManager(
-        config="tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin_manager.yaml"
-    )
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/valid_unix_external_plugin_manager.yaml")
 
     try:
         await plugin_manager.initialize()
@@ -331,9 +330,7 @@ async def test_unix_plugin_manager_multiple_hooks(unix_server_proc_for_manager):
     assert not server_proc.poll(), "Server failed to start"
 
     PluginManager.reset()
-    plugin_manager = PluginManager(
-        config="tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin_manager.yaml"
-    )
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/valid_unix_external_plugin_manager.yaml")
 
     try:
         await plugin_manager.initialize()
@@ -350,8 +347,8 @@ async def test_unix_plugin_manager_multiple_hooks(unix_server_proc_for_manager):
         assert result.modified_payload.args["user"] == "This is yikes!"
 
         # Test prompt_post_fetch
-        message = Message(content=TextContent(type="text", text="What crud!"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What crud!"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         post_payload = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
         result, _ = await plugin_manager.invoke_hook(
@@ -373,9 +370,7 @@ async def test_unix_plugin_manager_context_persistence(unix_server_proc_for_mana
     assert not server_proc.poll(), "Server failed to start"
 
     PluginManager.reset()
-    plugin_manager = PluginManager(
-        config="tests/unit/mcpgateway/plugins/fixtures/configs/valid_unix_external_plugin_manager.yaml"
-    )
+    plugin_manager = PluginManager(config="tests/unit/cpex/fixtures/configs/valid_unix_external_plugin_manager.yaml")
 
     try:
         await plugin_manager.initialize()

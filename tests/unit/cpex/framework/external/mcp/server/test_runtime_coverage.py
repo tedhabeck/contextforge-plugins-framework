@@ -1,18 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Coverage tests for mcpgateway.plugins.framework.external.mcp.server.runtime."""
+"""Coverage tests for cpex.framework.external.mcp.server.runtime."""
 
 # Standard
-import os
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.models import MCPServerConfig
-import mcpgateway.plugins.framework.external.mcp.server.runtime as runtime
-
+from cpex.framework.models import MCPServerConfig
+import cpex.framework.external.mcp.server.runtime as runtime
 
 # ===========================================================================
 # Module-Level Tool Functions
@@ -52,7 +50,6 @@ class TestSSLCapableFastMCPInit:
 
     def test_ssl_config_partial_tls_warns(self, tmp_path, caplog):
         """TLS present but no keyfile/certfile returns empty dict + warning."""
-        from mcpgateway.plugins.framework.models import MCPServerTLSConfig
 
         cert_path = tmp_path / "cert.pem"
         cert_path.write_text("cert")
@@ -75,7 +72,7 @@ class TestSSLCapableFastMCPInit:
 
     def test_ssl_config_tls_without_ca_or_password(self, tmp_path):
         """Exercise _get_ssl_config branches when optional TLS fields are missing."""
-        from mcpgateway.plugins.framework.models import MCPServerTLSConfig
+        from cpex.framework.models import MCPServerTLSConfig
 
         cert_path = tmp_path / "cert.pem"
         key_path = tmp_path / "key.pem"
@@ -132,7 +129,7 @@ class TestRunStreamableHTTPAsync:
                 served()
 
         configs_seen = []
-        original_config = runtime.uvicorn.Config
+        _ = runtime.uvicorn.Config
 
         def capture_config(**kwargs):
             configs_seen.append(kwargs)
@@ -380,6 +377,7 @@ class TestRunFunction:
             def tool(self, name):
                 def decorator(fn):
                     return fn
+
                 return decorator
 
             async def run_stdio_async(self):
@@ -457,6 +455,7 @@ class TestRunFunction:
             def tool(self, name):
                 def decorator(fn):
                     return fn
+
                 return decorator
 
             async def run_streamable_http_async(self):

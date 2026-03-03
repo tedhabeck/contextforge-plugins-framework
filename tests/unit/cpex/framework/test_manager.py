@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_manager.py
+"""Location: ./tests/unit/cpex/framework/test_manager.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor, Fred Araujo
@@ -7,19 +7,28 @@ Authors: Teryl Taylor, Fred Araujo
 Unit tests for plugin manager.
 """
 
+from types import SimpleNamespace
+
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import GlobalContext, PluginManager, PluginViolationError
-from mcpgateway.plugins.framework import PromptHookType, ToolHookType,  HttpHeaderPayload,  PromptPosthookPayload, PromptPrehookPayload, ToolPostInvokePayload, ToolPreInvokePayload
+from cpex.framework import GlobalContext, PluginManager, PluginViolationError
+from cpex.framework import (
+    PromptHookType,
+    ToolHookType,
+    HttpHeaderPayload,
+    PromptPosthookPayload,
+    PromptPrehookPayload,
+    ToolPostInvokePayload,
+    ToolPreInvokePayload,
+)
 from plugins.regex_filter.search_replace import SearchReplaceConfig
 
 
 @pytest.mark.asyncio
 async def test_manager_single_transformer_prompt_plugin():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     await manager.initialize()
     assert manager.config.plugins[0].name == "ReplaceBadWordsPlugin"
     assert manager.config.plugins[0].kind == "plugins.regex_filter.search_replace.SearchReplacePlugin"
@@ -39,13 +48,17 @@ async def test_manager_single_transformer_prompt_plugin():
     assert len(result.modified_payload.args) == 1
     assert result.modified_payload.args["user"] == "What a yikesshow!"
 
-    message = Message(content=TextContent(type="text", text=result.modified_payload.args["user"]), role=Role.USER)
+    message = SimpleNamespace(
+        content=SimpleNamespace(type="text", text=result.modified_payload.args["user"]), role="user"
+    )
 
-    prompt_result = PromptResult(messages=[message])
+    prompt_result = SimpleNamespace(messages=[message])
 
     payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
-    result, _ = await manager.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload_result, global_context=global_context, local_contexts=contexts)
+    result, _ = await manager.invoke_hook(
+        PromptHookType.PROMPT_POST_FETCH, payload_result, global_context=global_context, local_contexts=contexts
+    )
     assert len(result.modified_payload.result.messages) == 1
     assert result.modified_payload.result.messages[0].content.text == "What a yikesshow!"
     await manager.shutdown()
@@ -53,7 +66,7 @@ async def test_manager_single_transformer_prompt_plugin():
 
 @pytest.mark.asyncio
 async def test_manager_multiple_transformer_preprompt_plugin():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_multiple_plugins.yaml")
     await manager.initialize()
     assert manager.initialized
     assert manager.config.plugins[0].name == "SynonymsPlugin"
@@ -87,13 +100,15 @@ async def test_manager_multiple_transformer_preprompt_plugin():
     assert len(result.modified_payload.args) == 1
     assert result.modified_payload.args["user"] == "It's always gleeful at the yikesshow."
 
-    message = Message(content=TextContent(type="text", text="It's sad at the crud bakery."), role=Role.USER)
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="It's sad at the crud bakery."), role="user")
 
-    prompt_result = PromptResult(messages=[message])
+    prompt_result = SimpleNamespace(messages=[message])
 
     payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
-    result, _ = await manager.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload_result, global_context=global_context, local_contexts=contexts)
+    result, _ = await manager.invoke_hook(
+        PromptHookType.PROMPT_POST_FETCH, payload_result, global_context=global_context, local_contexts=contexts
+    )
     assert len(result.modified_payload.result.messages) == 1
     assert result.modified_payload.result.messages[0].content.text == "It's sullen at the yikes bakery."
     await manager.shutdown()
@@ -101,7 +116,7 @@ async def test_manager_multiple_transformer_preprompt_plugin():
 
 @pytest.mark.asyncio
 async def test_manager_no_plugins():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
     prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"user": "It's always happy at the crapshow."})
@@ -114,7 +129,7 @@ async def test_manager_no_plugins():
 
 @pytest.mark.asyncio
 async def test_manager_filter_plugins():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_filter_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_single_filter_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
     prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"user": "innovative"})
@@ -124,7 +139,9 @@ async def test_manager_filter_plugins():
     assert result.violation
 
     with pytest.raises(PluginViolationError) as ve:
-        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True)
+        result, _ = await manager.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True
+        )
     assert ve.value.violation
     assert ve.value.violation.reason == "Prompt not allowed"
     await manager.shutdown()
@@ -132,7 +149,7 @@ async def test_manager_filter_plugins():
 
 @pytest.mark.asyncio
 async def test_manager_multi_filter_plugins():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml")
     await manager.initialize()
     assert manager.initialized
     prompt = PromptPrehookPayload(prompt_id="test_prompt", args={"user": "innovative crapshow."})
@@ -141,7 +158,9 @@ async def test_manager_multi_filter_plugins():
     assert not result.continue_processing
     assert result.violation
     with pytest.raises(PluginViolationError) as ve:
-        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True)
+        result, _ = await manager.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True
+        )
     assert ve.value.violation
     await manager.shutdown()
 
@@ -149,14 +168,16 @@ async def test_manager_multi_filter_plugins():
 @pytest.mark.asyncio
 async def test_manager_tool_hooks_empty():
     """Test tool hooks with no plugins configured."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with no plugins
     tool_payload = ToolPreInvokePayload(name="calculator", args={"operation": "add", "a": 5, "b": 3})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     # Should continue processing with no modifications
     assert result.continue_processing
@@ -166,7 +187,9 @@ async def test_manager_tool_hooks_empty():
 
     # Test tool post-invoke with no plugins
     tool_result_payload = ToolPostInvokePayload(name="calculator", result={"result": 8, "status": "success"})
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context
+    )
 
     # Should continue processing with no modifications
     assert result.continue_processing
@@ -180,14 +203,16 @@ async def test_manager_tool_hooks_empty():
 @pytest.mark.asyncio
 async def test_manager_tool_hooks_with_transformer_plugin():
     """Test tool hooks with a transformer plugin that doesn't have tool hooks configured."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke - no plugins configured for tool hooks
     tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is crap data"})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     # Should continue processing with no modifications (no plugins for tool hooks)
     assert result.continue_processing
@@ -197,7 +222,9 @@ async def test_manager_tool_hooks_with_transformer_plugin():
 
     # Test tool post-invoke - no plugins configured for tool hooks
     tool_result_payload = ToolPostInvokePayload(name="test_tool", result={"output": "Result with crap in it"})
-    result, _ = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts)
+    result, _ = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts
+    )
 
     # Should continue processing with no modifications (no plugins for tool hooks)
     assert result.continue_processing
@@ -210,14 +237,16 @@ async def test_manager_tool_hooks_with_transformer_plugin():
 @pytest.mark.asyncio
 async def test_manager_tool_hooks_with_actual_plugin():
     """Test tool hooks with a real plugin configured for tool processing."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_tool_hooks.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_tool_hooks.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with transformation - use correct tool name from config
     tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     # Should continue processing with transformations applied
     assert result.continue_processing
@@ -228,8 +257,12 @@ async def test_manager_tool_hooks_with_actual_plugin():
     assert result.violation is None
 
     # Test tool post-invoke with transformation
-    tool_result_payload = ToolPostInvokePayload(name="test_tool", result={"output": "Result was bad", "status": "wrong format"})
-    result, _ = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts)
+    tool_result_payload = ToolPostInvokePayload(
+        name="test_tool", result={"output": "Result was bad", "status": "wrong format"}
+    )
+    result, _ = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts
+    )
 
     # Should continue processing with transformations applied
     assert result.continue_processing
@@ -245,14 +278,18 @@ async def test_manager_tool_hooks_with_actual_plugin():
 @pytest.mark.asyncio
 async def test_manager_tool_hooks_with_header_mods():
     """Test tool hooks with a real plugin configured for tool processing."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/tool_headers_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/tool_headers_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with transformation - use correct tool name from config
-    tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"}, headers=None)
+    tool_payload = ToolPreInvokePayload(
+        name="test_tool", args={"input": "This is bad data", "quality": "wrong"}, headers=None
+    )
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     # Should continue processing with transformations applied
     assert result.continue_processing
@@ -266,9 +303,15 @@ async def test_manager_tool_hooks_with_header_mods():
     assert result.modified_payload.headers["Connection"] == "keep-alive"
 
     # Test tool pre-invoke with transformation - use correct tool name from config
-    tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"}, headers=HttpHeaderPayload({"Content-Type": "application/json"}))
+    tool_payload = ToolPreInvokePayload(
+        name="test_tool",
+        args={"input": "This is bad data", "quality": "wrong"},
+        headers=HttpHeaderPayload({"Content-Type": "application/json"}),
+    )
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     # Should continue processing with transformations applied
     assert result.continue_processing
@@ -299,7 +342,7 @@ async def test_plugin_manager_singleton_behavior():
     PluginManager.reset()
 
     # Create first instance with a specific config
-    config1_path = "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    config1_path = "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     manager1 = PluginManager(config1_path)
     await manager1.initialize()
 
@@ -324,7 +367,7 @@ async def test_plugin_manager_singleton_behavior():
     assert manager2.plugin_count == plugin_count_1, "Plugin count should not change on re-initialization"
 
     # Create third instance with different config path
-    config2_path = "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins.yaml"
+    config2_path = "./tests/unit/cpex/fixtures/configs/valid_multiple_plugins.yaml"
     manager3 = PluginManager(config2_path)
 
     # Verify third instance STILL shares state (config path is ignored after first init)
@@ -374,12 +417,13 @@ async def test_plugin_manager_thread_safety():
     # Clean up any previous state
     PluginManager.reset()
 
-    config_path = "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    config_path = "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     managers = []
     exceptions = []
 
     # Track config loads by wrapping ConfigLoader
-    from mcpgateway.plugins.framework.loader.config import ConfigLoader
+    from cpex.framework.loader.config import ConfigLoader
+
     original_load = ConfigLoader.load_config
     load_count = {"value": 0}
 
@@ -424,7 +468,9 @@ async def test_plugin_manager_thread_safety():
     assert len(managers) == num_threads, f"Expected {num_threads} managers, got {len(managers)}"
 
     # CRITICAL: Config should only be loaded once despite multiple threads
-    assert load_count["value"] == 1, f"Config was loaded {load_count['value']} times instead of 1 (race condition detected)"
+    assert (
+        load_count["value"] == 1
+    ), f"Config was loaded {load_count['value']} times instead of 1 (race condition detected)"
 
     # Verify all managers share the same state
     first_manager = managers[0][1]
@@ -455,7 +501,7 @@ async def test_plugin_manager_async_concurrency():
     # Clean up any previous state
     PluginManager.reset()
 
-    config_path = "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    config_path = "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
 
     # Test 1: Concurrent initializations
     managers = [PluginManager(config_path) for _ in range(5)]

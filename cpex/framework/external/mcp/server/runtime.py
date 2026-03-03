@@ -71,7 +71,13 @@ import uvicorn
 
 # First-Party
 from cpex.framework import ExternalPluginServer, MCPServerConfig
-from cpex.framework.constants import GET_PLUGIN_CONFIG, GET_PLUGIN_CONFIGS, INVOKE_HOOK, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAME
+from cpex.framework.constants import (
+    GET_PLUGIN_CONFIG,
+    GET_PLUGIN_CONFIGS,
+    INVOKE_HOOK,
+    MCP_SERVER_INSTRUCTIONS,
+    MCP_SERVER_NAME,
+)
 from cpex.framework.settings import get_transport_settings
 
 logger = logging.getLogger(__name__)
@@ -325,7 +331,11 @@ class SSLCapableFastMCP(FastMCP):
             Returns:
                 Response: HTTP 503 response indicating metrics are disabled.
             """
-            return Response(content='{"error": "Metrics collection is disabled"}', media_type="application/json", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response(
+                content='{"error": "Metrics collection is disabled"}',
+                media_type="application/json",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         routes = [
             Route("/health", health_check, methods=["GET"]),
@@ -399,7 +409,11 @@ class SSLCapableFastMCP(FastMCP):
             Returns:
                 Response: HTTP 503 response indicating metrics are disabled.
             """
-            return Response(content='{"error": "Metrics collection is disabled"}', media_type="application/json", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response(
+                content='{"error": "Metrics collection is disabled"}',
+                media_type="application/json",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         # Add the metrics route to the Starlette app
         enable_metrics = os.getenv("ENABLE_METRICS", "true").lower() == "true"
@@ -529,10 +543,14 @@ async def run() -> None:
             mcp.tool(name=GET_PLUGIN_CONFIG)(get_plugin_config)
             mcp.tool(name=INVOKE_HOOK)(invoke_hook)
             # set the plugin_info gauge on startup
-            ssl_enabled: Literal["true", "false"] = "true" if server_config and server_config.tls is not None else "false"
+            ssl_enabled: Literal["true", "false"] = (
+                "true" if server_config and server_config.tls is not None else "false"
+            )
             PLUGIN_INFO.labels(server_name=MCP_SERVER_NAME, transport="http", ssl_enabled=ssl_enabled).set(1)
             if server_config:
-                logger.info(f"Prometheus metrics available at http://{server_config.host}:{server_config.port}/metrics/prometheus")
+                logger.info(
+                    f"Prometheus metrics available at http://{server_config.host}:{server_config.port}/metrics/prometheus"
+                )
             # Run with streamable-http transport
             logger.info("Starting MCP plugin server with FastMCP (HTTP transport)")
             await mcp.run_streamable_http_async()

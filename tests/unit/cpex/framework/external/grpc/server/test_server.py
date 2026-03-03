@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/server/test_server.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/server/test_server.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -11,13 +11,18 @@ Tests for GrpcPluginServicer and GrpcHealthServicer.
 import pytest
 
 # Standard
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
+# Third-Party
+
+# First-Party
+from cpex.framework.models import GlobalContext, PluginConfig, PluginContext
 
 try:
     from google.protobuf import json_format
     from google.protobuf.struct_pb2 import Struct
-    from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
-    from mcpgateway.plugins.framework.external.grpc.server.server import GrpcHealthServicer, GrpcPluginServicer
+    from cpex.framework.external.grpc.proto import plugin_service_pb2
+    from cpex.framework.external.grpc.server.server import GrpcHealthServicer, GrpcPluginServicer
 
     HAS_PROTOBUF = True
 except ImportError:
@@ -27,12 +32,6 @@ except ImportError:
     Struct = None  # type: ignore
 
 pytestmark = pytest.mark.skipif(not HAS_PROTOBUF, reason="google protobuf not installed")
-
-# Third-Party
-import pytest
-
-# First-Party
-from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginContext
 
 
 @pytest.fixture
@@ -166,8 +165,8 @@ class TestGrpcPluginServicerInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_with_error(self, servicer, mock_plugin_server):
         """Test InvokeHook handles plugin errors."""
-        from mcpgateway.plugins.framework.errors import PluginError
-        from mcpgateway.plugins.framework.models import PluginErrorModel
+        from cpex.framework.errors import PluginError
+        from cpex.framework.models import PluginErrorModel
 
         mock_plugin_server.invoke_hook = AsyncMock(
             side_effect=PluginError(
@@ -440,16 +439,14 @@ class TestGrpcPluginServicerExceptionHandling:
     @pytest.mark.asyncio
     async def test_invoke_hook_with_error_model(self, servicer, mock_plugin_server):
         """Test InvokeHook handles error as Pydantic model with model_dump."""
-        from mcpgateway.plugins.framework.models import PluginErrorModel
+        from cpex.framework.models import PluginErrorModel
 
         error_model = PluginErrorModel(
             message="Model error",
             plugin_name="TestPlugin",
             code="MODEL_ERROR",
         )
-        mock_plugin_server.invoke_hook = AsyncMock(
-            return_value={"error": error_model}
-        )
+        mock_plugin_server.invoke_hook = AsyncMock(return_value={"error": error_model})
 
         request = plugin_service_pb2.InvokeHookRequest()
         request.hook_type = "tool_pre_invoke"

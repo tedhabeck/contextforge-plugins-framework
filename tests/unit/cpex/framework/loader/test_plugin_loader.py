@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/loader/test_plugin_loader.py
+"""Location: ./tests/unit/cpex/framework/loader/test_plugin_loader.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -8,25 +8,26 @@ Unit tests for config and plugin loaders.
 """
 
 # Standard
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+from types import SimpleNamespace
 
 # Third-Party
 from pydantic import ValidationError
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework.loader.config import ConfigLoader
-from mcpgateway.plugins.framework.loader.plugin import PluginLoader
-from mcpgateway.plugins.framework import GlobalContext, PluginContext, PluginMode, PromptPosthookPayload, PromptPrehookPayload
-from mcpgateway.plugins.framework.constants import EXTERNAL_PLUGIN_TYPE
-from mcpgateway.plugins.framework.external.mcp.client import ExternalPlugin
-from mcpgateway.plugins.framework.models import PluginConfig
+from cpex.framework.loader.config import ConfigLoader
+from cpex.framework.loader.plugin import PluginLoader
+from cpex.framework import GlobalContext, PluginContext, PluginMode, PromptPosthookPayload, PromptPrehookPayload
+from cpex.framework.constants import EXTERNAL_PLUGIN_TYPE
+from cpex.framework.external.mcp.client import ExternalPlugin
+from cpex.framework.models import PluginConfig
 from plugins.regex_filter.search_replace import SearchReplaceConfig, SearchReplacePlugin
+
 
 def test_config_loader_load():
     """pytest for testing the config loader."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     assert config
     assert len(config.plugins) == 1
     assert config.plugins[0].name == "ReplaceBadWordsPlugin"
@@ -46,7 +47,7 @@ def test_config_loader_load():
 @pytest.mark.asyncio
 async def test_plugin_loader_load():
     """Load a plugin with the plugin loader."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
     assert isinstance(plugin, SearchReplacePlugin)
@@ -63,8 +64,8 @@ async def test_plugin_loader_load():
     assert len(result.modified_payload.args) == 1
     assert result.modified_payload.args["user"] == "What a yikesshow!"
 
-    message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-    prompt_result = PromptResult(messages=[message])
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+    prompt_result = SimpleNamespace(messages=[message])
 
     payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
@@ -78,7 +79,9 @@ async def test_plugin_loader_load():
 @pytest.mark.asyncio
 async def test_plugin_loader_invalid_plugin_load():
     """Load an invalid plugin with the plugin loader."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/invalid_single_plugin.yaml", use_jinja=False)
+    config = ConfigLoader.load_config(
+        config="./tests/unit/cpex/fixtures/configs/invalid_single_plugin.yaml", use_jinja=False
+    )
     loader = PluginLoader()
     with pytest.raises(ModuleNotFoundError):
         await loader.load_and_instantiate_plugin(config.plugins[0])
@@ -87,7 +90,7 @@ async def test_plugin_loader_invalid_plugin_load():
 @pytest.mark.asyncio
 async def test_plugin_loader_duplicate_registration():
     """Test that duplicate plugin type registration is handled correctly."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
 
     # Load the same plugin twice to test the "if kind not in self._plugin_types" path (line 72)
@@ -95,7 +98,7 @@ async def test_plugin_loader_duplicate_registration():
     plugin2 = await loader.load_and_instantiate_plugin(config.plugins[0])
 
     # Both should be instances of the same type
-    assert type(plugin1) == type(plugin2)
+    assert type(plugin1) is type(plugin2)
     assert isinstance(plugin1, SearchReplacePlugin)
     assert isinstance(plugin2, SearchReplacePlugin)
 
@@ -110,7 +113,7 @@ async def test_plugin_loader_duplicate_registration():
 async def test_plugin_loader_get_plugin_type_error():
     """Test error handling in __get_plugin_type method."""
     # First-Party
-    from mcpgateway.plugins.framework.models import PluginConfig
+    from cpex.framework.models import PluginConfig
 
     loader = PluginLoader()
 
@@ -123,7 +126,7 @@ async def test_plugin_loader_get_plugin_type_error():
         tags=["test"],
         kind="nonexistent.module.InvalidPlugin",
         hooks=["prompt_pre_fetch"],
-        config={}
+        config={},
     )
 
     # This should raise an exception during plugin type registration
@@ -137,7 +140,7 @@ async def test_plugin_loader_get_plugin_type_error():
 async def test_plugin_loader_none_plugin_type():
     """Test handling when plugin type resolves to None."""
     # First-Party
-    from mcpgateway.plugins.framework.models import PluginConfig
+    from cpex.framework.models import PluginConfig
 
     loader = PluginLoader()
 
@@ -150,11 +153,11 @@ async def test_plugin_loader_none_plugin_type():
         tags=["test"],
         kind="test.plugin.TestPlugin",
         hooks=["prompt_pre_fetch"],
-        config={}
+        config={},
     )
 
     # Manually set plugin type to None to test line 90 (return None)
-    with patch.object(loader, '_PluginLoader__get_plugin_type') as mock_get_type:
+    with patch.object(loader, "_PluginLoader__get_plugin_type") as mock_get_type:
         mock_get_type.return_value = None
         loader._plugin_types[test_config.kind] = None
 
@@ -182,7 +185,7 @@ async def test_plugin_loader_shutdown_with_empty_types():
 @pytest.mark.asyncio
 async def test_plugin_loader_shutdown_with_existing_types():
     """Test shutdown clears existing plugin types."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
 
     # Load a plugin to populate _plugin_types
@@ -199,7 +202,7 @@ async def test_plugin_loader_shutdown_with_existing_types():
 async def test_plugin_loader_registration_branch_coverage():
     """Test plugin registration path coverage."""
     # First-Party
-    from mcpgateway.plugins.framework.models import PluginConfig
+    from cpex.framework.models import PluginConfig
 
     loader = PluginLoader()
 
@@ -212,7 +215,7 @@ async def test_plugin_loader_registration_branch_coverage():
         tags=["test"],
         kind="plugins.regex_filter.search_replace.SearchReplacePlugin",
         hooks=["prompt_pre_fetch"],
-        config={"words": [{"search": "test", "replace": "example"}]}
+        config={"words": [{"search": "test", "replace": "example"}]},
     )
 
     # First load - should register the plugin type (lines 85-87)
@@ -279,7 +282,7 @@ async def test_external_plugin_mcp_transport_path(monkeypatch):
         async def initialize(self):
             self.initialized = True
 
-    monkeypatch.setattr("mcpgateway.plugins.framework.loader.plugin.ExternalPlugin", DummyExternalPlugin)
+    monkeypatch.setattr("cpex.framework.loader.plugin.ExternalPlugin", DummyExternalPlugin)
 
     cfg = PluginConfig(
         name="ExternalMcpPlugin",

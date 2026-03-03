@@ -26,6 +26,7 @@ Examples:
     >>> # await plugin.initialize()
     >>> # result = await plugin.invoke_hook(hook_type, payload, context)
 """
+
 # pylint: disable=no-member,no-name-in-module
 
 # Standard
@@ -84,7 +85,11 @@ class UnixSocketExternalPlugin(Plugin):
         super().__init__(config)
 
         if not config.unix_socket:
-            raise PluginError(error=PluginErrorModel(message="The unix_socket section must be defined for Unix socket plugin", plugin_name=config.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message="The unix_socket section must be defined for Unix socket plugin", plugin_name=config.name
+                )
+            )
 
         self._socket_path = config.unix_socket.path
         self._reconnect_attempts = config.unix_socket.reconnect_attempts
@@ -117,7 +122,9 @@ class UnixSocketExternalPlugin(Plugin):
             logger.debug("Connected to Unix socket: %s", self._socket_path)
         except OSError as e:
             self._connected = False
-            raise PluginError(error=PluginErrorModel(message=f"Failed to connect to {self._socket_path}: {e}", plugin_name=self.name)) from e
+            raise PluginError(
+                error=PluginErrorModel(message=f"Failed to connect to {self._socket_path}: {e}", plugin_name=self.name)
+            ) from e
 
     async def _disconnect(self) -> None:
         """Close the connection."""
@@ -151,9 +158,16 @@ class UnixSocketExternalPlugin(Plugin):
                 if attempt < self._reconnect_attempts:
                     await asyncio.sleep(self._reconnect_delay * attempt)  # Exponential backoff
 
-        raise PluginError(error=PluginErrorModel(message=f"Failed to reconnect after {self._reconnect_attempts} attempts: {last_error}", plugin_name=self.name))
+        raise PluginError(
+            error=PluginErrorModel(
+                message=f"Failed to reconnect after {self._reconnect_attempts} attempts: {last_error}",
+                plugin_name=self.name,
+            )
+        )
 
-    async def _send_request(self, request: plugin_service_pb2.InvokeHookRequest) -> plugin_service_pb2.InvokeHookResponse:
+    async def _send_request(
+        self, request: plugin_service_pb2.InvokeHookRequest
+    ) -> plugin_service_pb2.InvokeHookResponse:
         """Send a request and receive response, with reconnection on failure.
 
         Args:
@@ -186,7 +200,11 @@ class UnixSocketExternalPlugin(Plugin):
 
                 except asyncio.TimeoutError as e:
                     logger.warning("Request timed out after %s seconds", self._timeout)
-                    raise PluginError(error=PluginErrorModel(message=f"Request timed out after {self._timeout}s", plugin_name=self.name)) from e
+                    raise PluginError(
+                        error=PluginErrorModel(
+                            message=f"Request timed out after {self._timeout}s", plugin_name=self.name
+                        )
+                    ) from e
 
                 except (OSError, asyncio.IncompleteReadError, BrokenPipeError) as e:
                     logger.warning("Connection error on attempt %d: %s", attempt + 1, e)
@@ -195,7 +213,12 @@ class UnixSocketExternalPlugin(Plugin):
                     if attempt < self._reconnect_attempts:
                         await asyncio.sleep(self._reconnect_delay * (attempt + 1))
                         continue
-                    raise PluginError(error=PluginErrorModel(message=f"Request failed after {self._reconnect_attempts + 1} attempts: {e}", plugin_name=self.name)) from e
+                    raise PluginError(
+                        error=PluginErrorModel(
+                            message=f"Request failed after {self._reconnect_attempts + 1} attempts: {e}",
+                            plugin_name=self.name,
+                        )
+                    ) from e
 
         # Should not reach here
         raise PluginError(error=PluginErrorModel(message="Unexpected state in _send_request", plugin_name=self.name))
@@ -269,7 +292,11 @@ class UnixSocketExternalPlugin(Plugin):
         registry = get_hook_registry()
         result_type = registry.get_result_type(hook_type)
         if not result_type:
-            raise PluginError(error=PluginErrorModel(message=f"Hook type '{hook_type}' not registered in hook registry", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message=f"Hook type '{hook_type}' not registered in hook registry", plugin_name=self.name
+                )
+            )
 
         # Convert payload to Struct (still polymorphic)
         payload_struct = Struct()

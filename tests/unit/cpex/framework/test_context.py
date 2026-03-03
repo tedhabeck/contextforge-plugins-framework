@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_context.py
+"""Location: ./tests/unit/cpex/framework/test_context.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
@@ -8,7 +8,7 @@ Tests for context passing plugins.
 """
 
 import pytest
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     PluginManager,
     ToolHookType,
@@ -19,14 +19,16 @@ from mcpgateway.plugins.framework import (
 
 @pytest.mark.asyncio
 async def test_shared_context_across_pre_post_hooks():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/context_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/context_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with transformation - use correct tool name from config
     tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     assert len(contexts) == 1
     context = next(iter(contexts.values()))
@@ -42,8 +44,12 @@ async def test_shared_context_across_pre_post_hooks():
     assert result.modified_payload is None
 
     # Test tool post-invoke with transformation
-    tool_result_payload = ToolPostInvokePayload(name="test_tool", result={"output": "Result was bad", "status": "wrong format"})
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts)
+    tool_result_payload = ToolPostInvokePayload(
+        name="test_tool", result={"output": "Result was bad", "status": "wrong format"}
+    )
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts
+    )
 
     assert len(contexts) == 1
     context = next(iter(contexts.values()))
@@ -65,14 +71,16 @@ async def test_shared_context_across_pre_post_hooks():
 
 @pytest.mark.asyncio
 async def test_shared_context_across_pre_post_hooks_multi_plugins():
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/context_multiplugins.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/context_multiplugins.yaml")
     await manager.initialize()
     assert manager.initialized
 
     # Test tool pre-invoke with transformation - use correct tool name from config
     tool_payload = ToolPreInvokePayload(name="test_tool", args={"input": "This is bad data", "quality": "wrong"})
     global_context = GlobalContext(request_id="1", server_id="2")
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context)
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context
+    )
 
     assert len(contexts) == 2
     ctxs = [contexts[key] for key in contexts.keys()]
@@ -100,8 +108,12 @@ async def test_shared_context_across_pre_post_hooks_multi_plugins():
     assert result.continue_processing
     assert result.modified_payload is None
     # Test tool post-invoke with transformation
-    tool_result_payload = ToolPostInvokePayload(name="test_tool", result={"output": "Result was bad", "status": "wrong format"})
-    result, contexts = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts)
+    tool_result_payload = ToolPostInvokePayload(
+        name="test_tool", result={"output": "Result was bad", "status": "wrong format"}
+    )
+    result, contexts = await manager.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, tool_result_payload, global_context=global_context, local_contexts=contexts
+    )
 
     ctxs = [contexts[key] for key in contexts.keys()]
     assert len(ctxs) == 2

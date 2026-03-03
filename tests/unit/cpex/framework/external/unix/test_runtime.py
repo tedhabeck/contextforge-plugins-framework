@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/unix/test_runtime.py
+"""Location: ./tests/unit/cpex/framework/external/unix/test_runtime.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -11,13 +11,13 @@ Tests for run() and main() entry points.
 # Standard
 import asyncio
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 # Third-Party
 import pytest
 
 try:
-    from mcpgateway.plugins.framework.external.unix.server.runtime import main, run
+    from cpex.framework.external.unix.server.runtime import main, run
 
     HAS_GRPC = True
 except ImportError:
@@ -36,7 +36,7 @@ class TestUnixRuntimeRun:
 
         with patch.dict(os.environ, {}, clear=True):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.server.runtime.run_server",
+                "cpex.framework.external.unix.server.runtime.run_server",
                 mock_run_server,
             ):
                 await run()
@@ -60,7 +60,7 @@ class TestUnixRuntimeRun:
         }
         with patch.dict(os.environ, env_vars, clear=True):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.server.runtime.run_server",
+                "cpex.framework.external.unix.server.runtime.run_server",
                 mock_run_server,
             ):
                 await run()
@@ -76,12 +76,13 @@ class TestUnixRuntimeMain:
 
     def test_main_keyboard_interrupt(self):
         """Test main handles KeyboardInterrupt gracefully."""
+
         def _raise_keyboard_interrupt(awaitable):
             awaitable.close()
             raise KeyboardInterrupt()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.runtime.asyncio.run",
+            "cpex.framework.external.unix.server.runtime.asyncio.run",
             side_effect=_raise_keyboard_interrupt,
         ):
             # Should not raise
@@ -89,12 +90,13 @@ class TestUnixRuntimeMain:
 
     def test_main_exception_exits(self):
         """Test main exits with code 1 on exception."""
+
         def _raise_runtime_error(awaitable):
             awaitable.close()
             raise RuntimeError("Server error")
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.runtime.asyncio.run",
+            "cpex.framework.external.unix.server.runtime.asyncio.run",
             side_effect=_raise_runtime_error,
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -111,7 +113,7 @@ class TestUnixRuntimeMain:
             return None
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.server.runtime.asyncio.run",
+            "cpex.framework.external.unix.server.runtime.asyncio.run",
         ) as mock_asyncio_run:
             mock_asyncio_run.side_effect = _close_and_return
             main()

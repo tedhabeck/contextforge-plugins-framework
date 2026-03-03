@@ -44,7 +44,16 @@ from cpex.framework.hooks.policies import apply_policy, DefaultHookPolicy, HookP
 from cpex.framework.loader.config import ConfigLoader
 from cpex.framework.loader.plugin import PluginLoader
 from cpex.framework.memory import copyonwrite
-from cpex.framework.models import Config, GlobalContext, PluginContext, PluginContextTable, PluginErrorModel, PluginMode, PluginPayload, PluginResult
+from cpex.framework.models import (
+    Config,
+    GlobalContext,
+    PluginContext,
+    PluginContextTable,
+    PluginErrorModel,
+    PluginMode,
+    PluginPayload,
+    PluginResult,
+)
 from cpex.framework.observability import current_trace_id, ObservabilityProvider
 from cpex.framework.registry import PluginInstanceRegistry
 from cpex.framework.settings import settings
@@ -177,7 +186,9 @@ class PluginExecutor:
                 continue
 
             # Check if plugin conditions match current context
-            if hook_ref.plugin_ref.conditions and not payload_matches(payload, hook_type, hook_ref.plugin_ref.conditions, global_context):
+            if hook_ref.plugin_ref.conditions and not payload_matches(
+                payload, hook_type, hook_ref.plugin_ref.conditions, global_context
+            ):
                 logger.debug("Skipping plugin %s - conditions not met", hook_ref.plugin_ref.name)
                 continue
 
@@ -208,9 +219,15 @@ class PluginExecutor:
             # RootModel subclasses (e.g. HttpHeaderPayload) wrap mutable containers
             # that bypass the frozen=True constraint via __setitem__, so they must
             # always be deep-copied to prevent in-place corruption of the live chain.
-            needs_isolation = policy or self.default_hook_policy == DefaultHookPolicy.DENY or isinstance(effective_payload, RootModel)
+            needs_isolation = (
+                policy or self.default_hook_policy == DefaultHookPolicy.DENY or isinstance(effective_payload, RootModel)
+            )
             if needs_isolation:
-                plugin_input = effective_payload.model_copy(deep=True) if isinstance(effective_payload, BaseModel) else copy.deepcopy(effective_payload)
+                plugin_input = (
+                    effective_payload.model_copy(deep=True)
+                    if isinstance(effective_payload, BaseModel)
+                    else copy.deepcopy(effective_payload)
+                )
             else:
                 plugin_input = effective_payload
 
@@ -227,7 +244,9 @@ class PluginExecutor:
             # Apply policy-based controlled merge (per-plugin)
             if result.modified_payload is not None:
                 if policy:
-                    if isinstance(result.modified_payload, type(effective_payload)) and isinstance(effective_payload, BaseModel):
+                    if isinstance(result.modified_payload, type(effective_payload)) and isinstance(
+                        effective_payload, BaseModel
+                    ):
                         # Same-type BaseModel payload — apply field-level policy filtering
                         filtered = apply_policy(
                             effective_payload,
@@ -276,7 +295,10 @@ class PluginExecutor:
             # and halt the chain.  They differ only in error handling: ENFORCE raises
             # on plugin errors/timeouts, while ENFORCE_IGNORE_ERROR swallows them and
             # lets the chain continue (see execute_plugin exception handlers).
-            if not result.continue_processing and hook_ref.plugin_ref.mode in (PluginMode.ENFORCE, PluginMode.ENFORCE_IGNORE_ERROR):
+            if not result.continue_processing and hook_ref.plugin_ref.mode in (
+                PluginMode.ENFORCE,
+                PluginMode.ENFORCE_IGNORE_ERROR,
+            ):
                 if hook_type == HTTP_AUTH_CHECK_PERMISSION_HOOK and decision_plugin_name:
                     combined_metadata[DECISION_PLUGIN_METADATA_KEY] = decision_plugin_name
                 return (
@@ -292,7 +314,12 @@ class PluginExecutor:
         if hook_type == HTTP_AUTH_CHECK_PERMISSION_HOOK and decision_plugin_name:
             combined_metadata[DECISION_PLUGIN_METADATA_KEY] = decision_plugin_name
 
-        return (PluginResult(continue_processing=True, modified_payload=current_payload, violation=None, metadata=combined_metadata), res_local_contexts)
+        return (
+            PluginResult(
+                continue_processing=True, modified_payload=current_payload, violation=None, metadata=combined_metadata
+            ),
+            res_local_contexts,
+        )
 
     async def execute_plugin(
         self,
@@ -328,12 +355,18 @@ class PluginExecutor:
             result = await self._execute_with_timeout(hook_ref, payload, local_context)
             # Only merge global state for enforce modes; permissive plugins
             # operate on copy-on-write snapshots and should not mutate shared state.
-            if local_context.global_context and global_context and hook_ref.plugin_ref.mode in (PluginMode.ENFORCE, PluginMode.ENFORCE_IGNORE_ERROR):
+            if (
+                local_context.global_context
+                and global_context
+                and hook_ref.plugin_ref.mode in (PluginMode.ENFORCE, PluginMode.ENFORCE_IGNORE_ERROR)
+            ):
                 global_context.state.update(local_context.global_context.state)
                 global_context.metadata.update(local_context.global_context.metadata)
             # Aggregate metadata from all plugins
             if result.metadata and combined_metadata is not None:
-                combined_metadata.update({k: v for k, v in result.metadata.items() if k not in RESERVED_INTERNAL_METADATA_KEYS})
+                combined_metadata.update(
+                    {k: v for k, v in result.metadata.items() if k not in RESERVED_INTERNAL_METADATA_KEYS}
+                )
 
             # Track payload modifications
             # if result.modified_payload is not None:
@@ -373,7 +406,9 @@ class PluginExecutor:
             return result
         except asyncio.TimeoutError as exc:
             logger.error("Plugin %s timed out after %ds", hook_ref.plugin_ref.name, self.timeout)
-            if (self.config and self.config.plugin_settings.fail_on_plugin_error) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
+            if (
+                self.config and self.config.plugin_settings.fail_on_plugin_error
+            ) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
                 raise PluginError(
                     error=PluginErrorModel(
                         message=f"Plugin {hook_ref.plugin_ref.name} exceeded {self.timeout}s timeout",
@@ -385,17 +420,23 @@ class PluginExecutor:
             raise
         except PluginError as pe:
             logger.error("Plugin %s failed with error: %s", hook_ref.plugin_ref.name, str(pe))
-            if (self.config and self.config.plugin_settings.fail_on_plugin_error) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
+            if (
+                self.config and self.config.plugin_settings.fail_on_plugin_error
+            ) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
                 raise
         except Exception as e:
             logger.error("Plugin %s failed with error: %s", hook_ref.plugin_ref.name, str(e))
-            if (self.config and self.config.plugin_settings.fail_on_plugin_error) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
+            if (
+                self.config and self.config.plugin_settings.fail_on_plugin_error
+            ) or hook_ref.plugin_ref.mode == PluginMode.ENFORCE:
                 raise PluginError(error=convert_exception_to_error(e, hook_ref.plugin_ref.name)) from e
             # In permissive or enforce_ignore_error mode, continue with next plugin
         # Return a result indicating processing should continue despite the error
         return PluginResult(continue_processing=True)
 
-    async def _execute_with_timeout(self, hook_ref: HookRef, payload: PluginPayload, context: PluginContext) -> PluginResult:
+    async def _execute_with_timeout(
+        self, hook_ref: HookRef, payload: PluginPayload, context: PluginContext
+    ) -> PluginResult:
         """Execute a plugin with timeout protection.
 
         Args:
@@ -426,7 +467,11 @@ class PluginExecutor:
                     attributes={
                         "plugin.name": hook_ref.plugin_ref.name,
                         "plugin.uuid": hook_ref.plugin_ref.uuid,
-                        "plugin.mode": hook_ref.plugin_ref.mode.value if hasattr(hook_ref.plugin_ref.mode, "value") else str(hook_ref.plugin_ref.mode),
+                        "plugin.mode": (
+                            hook_ref.plugin_ref.mode.value
+                            if hasattr(hook_ref.plugin_ref.mode, "value")
+                            else str(hook_ref.plugin_ref.mode)
+                        ),
                         "plugin.priority": hook_ref.plugin_ref.priority,
                         "plugin.timeout": self.timeout,
                     },
@@ -595,7 +640,9 @@ class PluginManager:
                 if not executor.hook_policies:
                     executor.hook_policies = hook_policies
                 elif executor.hook_policies != hook_policies:
-                    logger.warning("PluginManager: hook_policies already set; ignoring new policies (call reset() first to replace them)")
+                    logger.warning(
+                        "PluginManager: hook_policies already set; ignoring new policies (call reset() first to replace them)"
+                    )
                 if observability and not executor.observability:
                     executor.observability = observability
         elif self._executor is None:
@@ -874,7 +921,9 @@ class PluginManager:
         hook_refs = self._registry.get_hook_refs_for_hook(hook_type=hook_type)
 
         # Execute plugins
-        result = await self._get_executor().execute(hook_refs, payload, global_context, hook_type, local_contexts, violations_as_exceptions)
+        result = await self._get_executor().execute(
+            hook_refs, payload, global_context, hook_type, local_contexts, violations_as_exceptions
+        )
 
         return result
 
@@ -938,7 +987,9 @@ class PluginManager:
             # When payload_as_json=True, payload should be str or dict
             if isinstance(payload, (str, dict)):
                 pydantic_payload = plugin.json_to_payload(hook_type, payload)
-                return await self._get_executor().execute_plugin(hook_ref, pydantic_payload, context, violations_as_exceptions)
+                return await self._get_executor().execute_plugin(
+                    hook_ref, pydantic_payload, context, violations_as_exceptions
+                )
             raise ValueError(f"When payload_as_json=True, payload must be str or dict, got {type(payload)}")
         # When payload_as_json=False, payload should already be a PluginPayload
         if not isinstance(payload, PluginPayload):

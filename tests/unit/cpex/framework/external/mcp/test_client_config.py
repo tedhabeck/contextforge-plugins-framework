@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/test_client_config.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/test_client_config.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -13,14 +13,14 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
 from mcp.types import CallToolResult, TextContent as MCPTextContent
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, ResourceContent, Role, TextContent, TransportType
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     ConfigLoader,
     GlobalContext,
     PluginContext,
@@ -33,17 +33,18 @@ from mcpgateway.plugins.framework import (
     ResourcePreFetchPayload,
     ToolPostInvokePayload,
     ToolPreInvokePayload,
+    MCPClientConfig,
+    TransportType,
+    PluginError,
 )
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.external.mcp.client import ExternalPlugin
-from mcpgateway.plugins.framework.models import MCPClientConfig
+from cpex.framework.external.mcp.client import ExternalPlugin
 
 
 @pytest.mark.asyncio
 async def test_initialize_missing_mcp_config():
     """Test initialize raises ValueError when mcp config is missing."""
     # Use a real config but temporarily remove mcp section
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
 
     # Create plugin and temporarily set mcp to None
@@ -57,7 +58,7 @@ async def test_initialize_missing_mcp_config():
 @pytest.mark.asyncio
 async def test_initialize_stdio_missing_script():
     """Test initialize raises ValueError for missing stdio script."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -72,7 +73,7 @@ async def test_initialize_stdio_missing_script():
 @pytest.mark.asyncio
 async def test_resolve_stdio_command_from_cmd():
     """Test cmd-based stdio command resolution."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -84,7 +85,7 @@ async def test_resolve_stdio_command_from_cmd():
 @pytest.mark.asyncio
 async def test_resolve_stdio_command_from_script_py():
     """Test script-based stdio command resolution for Python scripts."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -98,10 +99,10 @@ async def test_resolve_stdio_command_from_script_py():
 @pytest.mark.asyncio
 async def test_initialize_config_retrieval_failure():
     """Test initialize raises ValueError when plugin config retrieval fails."""
-    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml"
+    os.environ["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
     os.environ["PYTHONPATH"] = "."
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -118,8 +119,8 @@ async def test_initialize_config_retrieval_failure():
     mock_session.call_tool.return_value = CallToolResult(content=[])
 
     with (
-        patch("mcpgateway.plugins.framework.external.mcp.client.stdio_client") as mock_stdio_client,
-        patch("mcpgateway.plugins.framework.external.mcp.client.ClientSession", return_value=mock_session),
+        patch("cpex.framework.external.mcp.client.stdio_client") as mock_stdio_client,
+        patch("cpex.framework.external.mcp.client.ClientSession", return_value=mock_session),
     ):
         mock_stdio_client.return_value.__aenter__ = AsyncMock(return_value=(mock_stdio, mock_write))
         mock_stdio_client.return_value.__aexit__ = AsyncMock(return_value=False)
@@ -138,7 +139,7 @@ async def test_initialize_config_retrieval_failure():
 @pytest.mark.asyncio
 async def test_hook_methods_empty_content():
     """Test hook methods raise PluginError when content is empty."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -158,8 +159,8 @@ async def test_hook_methods_empty_content():
         await plugin.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, context)
 
     # Test prompt_post_fetch with empty content - should raise PluginError
-    message = Message(content=TextContent(type="text", text="test"), role=Role.USER)
-    prompt_result = PromptResult(messages=[message])
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="test"), role="user")
+    prompt_result = SimpleNamespace(messages=[message])
     payload = PromptPosthookPayload(prompt_id="1", result=prompt_result)
     with pytest.raises(PluginError):
         await plugin.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload, context)
@@ -180,7 +181,7 @@ async def test_hook_methods_empty_content():
         await plugin.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, payload, context)
 
     # Test resource_post_fetch with empty content - should raise PluginError
-    resource_content = ResourceContent(type="resource", id="123", uri="file://test.txt", text="content")
+    resource_content = SimpleNamespace(type="resource", id="123", uri="file://test.txt", text="content")
     payload = ResourcePostFetchPayload(uri="file://test.txt", content=resource_content)
     with pytest.raises(PluginError):
         await plugin.invoke_hook(ResourceHookType.RESOURCE_POST_FETCH, payload, context)
@@ -191,7 +192,7 @@ async def test_hook_methods_empty_content():
 @pytest.mark.asyncio
 async def test_get_plugin_config_no_content():
     """Test __get_plugin_config returns None when no content."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -212,7 +213,7 @@ async def test_get_plugin_config_no_content():
 @pytest.mark.asyncio
 async def test_get_plugin_config_empty_dict():
     """Test __get_plugin_config returns None on empty config payload."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -231,7 +232,7 @@ async def test_get_plugin_config_empty_dict():
 @pytest.mark.asyncio
 async def test_shutdown():
     """Test shutdown method calls exit_stack.aclose()."""
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_stdio_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_stdio_external_plugin.yaml")
     plugin_config = config.plugins[0]
     plugin = ExternalPlugin(plugin_config)
 
@@ -289,7 +290,11 @@ def test_mcp_config_uds_invalid_transport(tmp_path):
     """UDS is only valid for streamable HTTP."""
     uds_path = str(tmp_path / "mcp.sock")
     with pytest.raises(ValueError, match="uds is only valid for STREAMABLEHTTP transport"):
-        MCPClientConfig(proto=TransportType.STDIO, script="mcpgateway/plugins/framework/external/mcp/server/runtime.py", uds=uds_path)
+        MCPClientConfig(
+            proto=TransportType.STDIO,
+            script="mcpgateway/plugins/framework/external/mcp/server/runtime.py",
+            uds=uds_path,
+        )
 
 
 def test_mcp_config_uds_accepts_streamable_http(tmp_path):

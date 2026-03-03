@@ -17,11 +17,36 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Self, TypeVar, Union
 
 # Third-Party
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator, PrivateAttr, ValidationInfo
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+    PrivateAttr,
+    ValidationInfo,
+)
 
 # First-Party
-from cpex.framework.constants import CMD, CWD, ENV, EXTERNAL_PLUGIN_TYPE, IGNORE_CONFIG_EXTERNAL, PYTHON_SUFFIX, SCRIPT, UDS, URL
-from cpex.framework.settings import get_client_mtls_settings, get_grpc_client_mtls_settings, get_grpc_server_settings, get_mcp_server_settings, get_transport_settings
+from cpex.framework.constants import (
+    CMD,
+    CWD,
+    ENV,
+    EXTERNAL_PLUGIN_TYPE,
+    IGNORE_CONFIG_EXTERNAL,
+    PYTHON_SUFFIX,
+    SCRIPT,
+    UDS,
+    URL,
+)
+from cpex.framework.settings import (
+    get_client_mtls_settings,
+    get_grpc_client_mtls_settings,
+    get_grpc_server_settings,
+    get_mcp_server_settings,
+    get_transport_settings,
+)
 from cpex.framework.validators import validate_plugin_url
 
 T = TypeVar("T")
@@ -1067,7 +1092,9 @@ class UnixSocketServerConfig(BaseModel):
         '/tmp/plugin.sock'
     """
 
-    path: str = Field(default="/tmp/mcpgateway-plugins.sock", description="Path to the Unix domain socket")  # nosec B108 - configurable default
+    path: str = Field(
+        default="/tmp/mcpgateway-plugins.sock", description="Path to the Unix domain socket"
+    )  # nosec B108 - configurable default
 
     @classmethod
     def from_env(cls) -> Optional["UnixSocketServerConfig"]:
@@ -1166,7 +1193,10 @@ class PluginConfig(BaseModel):
             ignore_config_external = info.context[IGNORE_CONFIG_EXTERNAL]
 
         if not ignore_config_external and self.config and self.kind == EXTERNAL_PLUGIN_TYPE:
-            raise ValueError(f"""Cannot have {self.name} plugin defined as 'external' with 'config' set.""" """ 'config' section settings can only be set on the plugin server.""")
+            raise ValueError(
+                f"""Cannot have {self.name} plugin defined as 'external' with 'config' set."""
+                """ 'config' section settings can only be set on the plugin server."""
+            )
 
         # External plugins must have exactly one transport configured (mcp, grpc, or unix_socket)
         if self.kind == EXTERNAL_PLUGIN_TYPE:
@@ -1176,9 +1206,13 @@ class PluginConfig(BaseModel):
             transport_count = sum([has_mcp, has_grpc, has_unix])
 
             if transport_count == 0:
-                raise ValueError(f"External plugin {self.name} must have 'mcp', 'grpc', or 'unix_socket' section configured")
+                raise ValueError(
+                    f"External plugin {self.name} must have 'mcp', 'grpc', or 'unix_socket' section configured"
+                )
             if transport_count > 1:
-                raise ValueError(f"External plugin {self.name} can only have one transport configured (mcp, grpc, or unix_socket)")
+                raise ValueError(
+                    f"External plugin {self.name} can only have one transport configured (mcp, grpc, or unix_socket)"
+                )
 
         return self
 

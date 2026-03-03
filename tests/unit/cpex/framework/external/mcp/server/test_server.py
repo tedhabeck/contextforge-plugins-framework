@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/server/test_server.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/server/test_server.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -10,13 +10,13 @@ Comprehensive unit tests for ExternalPluginServer.
 # Standard
 import os
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     PluginContext,
     PromptHookType,
@@ -25,15 +25,15 @@ from mcpgateway.plugins.framework import (
     ToolHookType,
     ToolPreInvokePayload,
 )
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.external.mcp.server.server import ExternalPluginServer
-from mcpgateway.plugins.framework.models import MCPServerConfig, PluginErrorModel
+from cpex.framework.errors import PluginError
+from cpex.framework.external.mcp.server.server import ExternalPluginServer
+from cpex.framework.models import MCPServerConfig, PluginErrorModel
 
 
 @pytest.fixture
 def server_with_plugins():
     """Create a server with valid plugin configuration."""
-    return ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+    return ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml")
 
 
 @pytest.fixture
@@ -49,30 +49,30 @@ class TestExternalPluginServerInit:
 
     def test_init_with_config_path(self):
         """Test initialization with explicit config path."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
-        assert server._config_path == "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
+        assert server._config_path == "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
         assert server._config is not None
         assert server._plugin_manager is not None
 
     def test_init_with_env_var(self, monkeypatch):
         """Test initialization using PLUGINS_CONFIG_PATH environment variable."""
-        monkeypatch.setenv("PLUGINS_CONFIG_PATH", "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        monkeypatch.setenv("PLUGINS_CONFIG_PATH", "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         server = ExternalPluginServer()
-        assert server._config_path == "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+        assert server._config_path == "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
         assert server._config is not None
 
     def test_init_with_env_var_ignores_unrelated_invalid_plugin_fields(self, monkeypatch):
         """Initialization should not fail on unrelated invalid plugin env variables."""
-        monkeypatch.setenv("PLUGINS_CONFIG_PATH", "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        monkeypatch.setenv("PLUGINS_CONFIG_PATH", "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "abc")
         server = ExternalPluginServer()
-        assert server._config_path == "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+        assert server._config_path == "./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
         assert server._config is not None
 
     def test_init_with_default_path(self, monkeypatch):
         """Test initialization falls back to resources/plugins/config.yaml for standalone servers."""
         monkeypatch.delenv("PLUGINS_CONFIG_PATH", raising=False)
-        with patch("mcpgateway.plugins.framework.loader.config.ConfigLoader.load_config") as mock_load:
+        with patch("cpex.framework.loader.config.ConfigLoader.load_config") as mock_load:
             mock_load.return_value = Mock(plugins=[], server_settings=None)
             server = ExternalPluginServer()
             assert server._config_path == os.path.join(".", "resources", "plugins", "config.yaml")
@@ -101,7 +101,7 @@ class TestGetPluginConfigs:
     @pytest.mark.asyncio
     async def test_get_plugin_configs_single(self):
         """Test getting plugin configs with single plugin."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         configs = await server.get_plugin_configs()
         assert len(configs) == 1
         assert configs[0]["name"] == "ReplaceBadWordsPlugin"
@@ -109,7 +109,7 @@ class TestGetPluginConfigs:
     @pytest.mark.asyncio
     async def test_get_plugin_configs_empty(self):
         """Test getting plugin configs when no plugins configured."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         # Mock empty plugins list
         server._config.plugins = None
         configs = await server.get_plugin_configs()
@@ -142,7 +142,7 @@ class TestGetPluginConfig:
     @pytest.mark.asyncio
     async def test_get_plugin_config_empty_plugins(self):
         """Test getting plugin config when no plugins configured."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         server._config.plugins = None
         config = await server.get_plugin_config(name="AnyPlugin")
         assert config is None
@@ -157,7 +157,9 @@ class TestInvokeHook:
         payload = PromptPrehookPayload(prompt_id="123", name="test_prompt", args={"user": "This is so innovative"})
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result
@@ -171,7 +173,9 @@ class TestInvokeHook:
         payload = PromptPrehookPayload(prompt_id="123", name="test_prompt", args={"user": "normal text"})
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result
@@ -180,7 +184,7 @@ class TestInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_plugin_error(self, initialized_server):
         """Test hook invocation when plugin raises PluginError."""
-        with patch("mcpgateway.plugins.framework.manager.PluginManager.invoke_hook_for_plugin") as mock_invoke:
+        with patch("cpex.framework.manager.PluginManager.invoke_hook_for_plugin") as mock_invoke:
             # Simulate a PluginError
             error = PluginErrorModel(message="Test error", plugin_name="TestPlugin", code="TEST_ERROR")
             mock_invoke.side_effect = PluginError(error=error)
@@ -188,7 +192,9 @@ class TestInvokeHook:
             payload = PromptPrehookPayload(prompt_id="123", args={})
             context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-            result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+            result = await initialized_server.invoke_hook(
+                PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+            )
 
             assert result is not None
             assert "error" in result
@@ -201,14 +207,16 @@ class TestInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_generic_exception(self, initialized_server):
         """Test hook invocation when plugin raises generic exception."""
-        with patch("mcpgateway.plugins.framework.manager.PluginManager.invoke_hook_for_plugin") as mock_invoke:
+        with patch("cpex.framework.manager.PluginManager.invoke_hook_for_plugin") as mock_invoke:
             # Simulate a generic exception
             mock_invoke.side_effect = ValueError("Unexpected error")
 
             payload = PromptPrehookPayload(prompt_id="123", args={})
             context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-            result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+            result = await initialized_server.invoke_hook(
+                PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+            )
 
             assert result is not None
             assert "error" in result
@@ -223,7 +231,9 @@ class TestInvokeHook:
         invalid_context = {"invalid": "data"}
 
         # The method catches exceptions and returns them in the result
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), invalid_context)
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), invalid_context
+        )
 
         # Should return an error result instead of raising
         assert result is not None
@@ -236,7 +246,9 @@ class TestInvokeHook:
         payload = ToolPreInvokePayload(name="test_tool", args={"arg": "value"})
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            ToolHookType.TOOL_PRE_INVOKE, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result
@@ -245,12 +257,14 @@ class TestInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_prompt_post_fetch(self, initialized_server):
         """Test invoking prompt post-fetch hook."""
-        message = Message(content=TextContent(type="text", text="test content"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="test content"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         payload = PromptPosthookPayload(prompt_id="123", result=prompt_result)
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_POST_FETCH, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_POST_FETCH, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result
@@ -305,7 +319,7 @@ class TestGetServerConfig:
 
     def test_get_server_config_with_settings(self):
         """Test getting server config when server_settings is configured."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
 
         # Mock server settings
         expected_config = MCPServerConfig(host="0.0.0.0", port=8080, tls_enabled=False)
@@ -318,7 +332,7 @@ class TestGetServerConfig:
 
     def test_get_server_config_from_env(self):
         """Test getting server config from environment variables."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         server._config.server_settings = None
 
         # Set environment variables
@@ -336,7 +350,7 @@ class TestGetServerConfig:
 
     def test_get_server_config_defaults(self):
         """Test getting server config with defaults."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
         server._config.server_settings = None
 
         config = server.get_server_config()
@@ -346,9 +360,9 @@ class TestGetServerConfig:
     def test_get_server_config_with_tls(self, tmp_path):
         """Test getting server config with TLS enabled."""
         # First-Party
-        from mcpgateway.plugins.framework.models import MCPServerTLSConfig
+        from cpex.framework.models import MCPServerTLSConfig
 
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+        server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
 
         # Create dummy cert files for validation
         cert_file = tmp_path / "cert.pem"
@@ -371,20 +385,26 @@ class TestEdgeCases:
 
     def test_doctest_example(self):
         """Test the doctest example from __init__."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+        server = ExternalPluginServer(
+            config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
+        )
         assert server is not None
 
     @pytest.mark.asyncio
     async def test_doctest_get_plugin_configs(self):
         """Test the doctest example from get_plugin_configs."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+        server = ExternalPluginServer(
+            config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
+        )
         plugins = await server.get_plugin_configs()
         assert len(plugins) > 0
 
     @pytest.mark.asyncio
     async def test_doctest_get_plugin_config(self):
         """Test the doctest example from get_plugin_config."""
-        server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+        server = ExternalPluginServer(
+            config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml"
+        )
         config = await server.get_plugin_config(name="DenyListPlugin")
         assert config is not None
         assert config["name"] == "DenyListPlugin"
@@ -395,7 +415,9 @@ class TestEdgeCases:
         payload = PromptPrehookPayload(prompt_id="123", args={})
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result
@@ -404,10 +426,14 @@ class TestEdgeCases:
     async def test_invoke_hook_with_complex_payload(self, initialized_server):
         """Test hook invocation with multiple arguments."""
         # PromptPrehookPayload args values must be strings
-        payload = PromptPrehookPayload(prompt_id="123", args={"user": "test message", "system": "system prompt", "context": "additional context"})
+        payload = PromptPrehookPayload(
+            prompt_id="123", args={"user": "test message", "system": "system prompt", "context": "additional context"}
+        )
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
-        result = await initialized_server.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+        result = await initialized_server.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+        )
 
         assert result is not None
         assert "plugin_name" in result

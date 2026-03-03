@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_validators.py
+"""Location: ./tests/unit/cpex/framework/test_validators.py
 Copyright 2026
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.validators import SecurityValidator
+from cpex.framework.validators import SecurityValidator
 
 
 class TestSecurityValidatorUrl:
@@ -70,7 +70,7 @@ class TestSecurityValidatorUrl:
             SecurityValidator.validate_url("http://")
 
     def test_urlparse_generic_exception(self):
-        with patch("mcpgateway.plugins.framework.validators.urlparse", side_effect=RuntimeError("parse failure")):
+        with patch("cpex.framework.validators.urlparse", side_effect=RuntimeError("parse failure")):
             with pytest.raises(ValueError, match="is not a valid URL"):
                 SecurityValidator.validate_url("https://example.com")
 
@@ -131,7 +131,7 @@ class TestSecurityValidatorSsrf:
 
     def test_loopback_blocked_when_ssrf_enabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -142,7 +142,7 @@ class TestSecurityValidatorSsrf:
 
     def test_link_local_blocked_when_ssrf_enabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -153,7 +153,7 @@ class TestSecurityValidatorSsrf:
 
     def test_private_10_blocked_when_ssrf_enabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -164,7 +164,7 @@ class TestSecurityValidatorSsrf:
 
     def test_private_172_blocked_when_ssrf_enabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -175,7 +175,7 @@ class TestSecurityValidatorSsrf:
 
     def test_private_192_blocked_when_ssrf_enabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -186,7 +186,7 @@ class TestSecurityValidatorSsrf:
 
     def test_loopback_allowed_when_ssrf_disabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "false")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -197,7 +197,7 @@ class TestSecurityValidatorSsrf:
 
     def test_private_ip_allowed_when_ssrf_disabled(self, monkeypatch):
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "false")
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         try:
@@ -212,7 +212,7 @@ class TestSecurityValidatorSettingsIsolation:
 
     def test_url_validation_succeeds_with_malformed_unrelated_env(self, monkeypatch):
         """A malformed PLUGINS_SERVER_PORT should not break URL validation."""
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         settings.cache_clear()
@@ -224,7 +224,7 @@ class TestSecurityValidatorSettingsIsolation:
 
     def test_ssrf_check_works_with_malformed_unrelated_env(self, monkeypatch):
         """SSRF blocking should work even when unrelated env vars are malformed."""
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "true")
@@ -234,63 +234,6 @@ class TestSecurityValidatorSettingsIsolation:
                 SecurityValidator.validate_url("https://10.0.0.1/")
         finally:
             settings.cache_clear()
-
-
-class TestSecurityValidatorParity:
-    """Ensure framework validators stay in sync with gateway validators."""
-
-    def test_security_validator_url_scheme_parity(self):
-        """Framework allowed URL schemes must match the gateway's SecurityValidator."""
-        from mcpgateway.common.validators import SecurityValidator as GatewayValidator
-        from mcpgateway.plugins.framework.validators import _ALLOWED_URL_SCHEMES
-
-        gateway_schemes = GatewayValidator.ALLOWED_URL_SCHEMES
-        assert set(_ALLOWED_URL_SCHEMES) == set(gateway_schemes), f"Framework schemes {_ALLOWED_URL_SCHEMES} differ from gateway {gateway_schemes}"
-
-    def test_dangerous_url_patterns_parity(self):
-        """Framework dangerous URL patterns must match the gateway's patterns."""
-        from mcpgateway.common.validators import _DANGEROUS_URL_PATTERNS as gateway_patterns
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_URL_PATTERNS as framework_patterns
-
-        gateway_set = {p.pattern for p in gateway_patterns}
-        framework_set = {p.pattern for p in framework_patterns}
-        assert gateway_set == framework_set, f"Framework patterns {framework_set} differ from gateway {gateway_set}"
-
-    def test_dangerous_html_pattern_parity(self):
-        """Framework HTML XSS pattern must match the gateway's pattern (ignoring inline flags)."""
-        import re
-
-        from mcpgateway.config import settings as gw_settings
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_HTML_PATTERN
-
-        # Strip inline flags like (?i) for comparison — both compile with IGNORECASE
-        gw_pattern = re.sub(r"^\(\?[aiLmsux]+\)", "", gw_settings.validation_dangerous_html_pattern)
-        assert _DANGEROUS_HTML_PATTERN.pattern == gw_pattern, (
-            f"Framework HTML pattern differs from gateway: "
-            f"{_DANGEROUS_HTML_PATTERN.pattern!r} vs {gw_pattern!r}"
-        )
-
-    def test_dangerous_js_pattern_parity(self):
-        """Framework JS/event-handler pattern must match the gateway's pattern (ignoring inline flags)."""
-        import re
-
-        from mcpgateway.config import settings as gw_settings
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_JS_PATTERN
-
-        # Strip inline flags like (?i) for comparison — both compile with IGNORECASE
-        gw_pattern = re.sub(r"^\(\?[aiLmsux]+\)", "", gw_settings.validation_dangerous_js_pattern)
-        assert _DANGEROUS_JS_PATTERN.pattern == gw_pattern, (
-            f"Framework JS pattern differs from gateway: "
-            f"{_DANGEROUS_JS_PATTERN.pattern!r} vs {gw_pattern!r}"
-        )
-
-    def test_blocked_networks_cover_standard_private_ranges(self):
-        """Framework SSRF blocked networks must include standard private/reserved ranges."""
-        from mcpgateway.plugins.framework.validators import _BLOCKED_NETWORKS
-
-        blocked = {str(n) for n in _BLOCKED_NETWORKS}
-        expected = {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "169.254.0.0/16"}
-        assert expected.issubset(blocked), f"Missing standard private ranges: {expected - blocked}"
 
 
 class TestUrlHtmlJsPatternBlocking:
@@ -322,7 +265,7 @@ class TestDangerousPatternDetection:
         ],
     )
     def test_dangerous_html_pattern_matches(self, html):
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_HTML_PATTERN
+        from cpex.framework.validators import _DANGEROUS_HTML_PATTERN
 
         assert _DANGEROUS_HTML_PATTERN.search(html), f"Pattern should match: {html!r}"
 
@@ -336,7 +279,7 @@ class TestDangerousPatternDetection:
         ],
     )
     def test_dangerous_html_pattern_ignores_safe_tags(self, safe):
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_HTML_PATTERN
+        from cpex.framework.validators import _DANGEROUS_HTML_PATTERN
 
         assert not _DANGEROUS_HTML_PATTERN.search(safe), f"Pattern should not match: {safe!r}"
 
@@ -345,13 +288,13 @@ class TestDangerousPatternDetection:
         [
             "javascript:alert(1)",
             "vbscript:MsgBox",
-            ' onclick=alert(1)',
-            ' onload=evil()',
+            " onclick=alert(1)",
+            " onload=evil()",
             '<script src="x">',
         ],
     )
     def test_dangerous_js_pattern_matches(self, js):
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_JS_PATTERN
+        from cpex.framework.validators import _DANGEROUS_JS_PATTERN
 
         assert _DANGEROUS_JS_PATTERN.search(js), f"Pattern should match: {js!r}"
 
@@ -364,6 +307,6 @@ class TestDangerousPatternDetection:
         ],
     )
     def test_dangerous_js_pattern_ignores_safe_input(self, safe):
-        from mcpgateway.plugins.framework.validators import _DANGEROUS_JS_PATTERN
+        from cpex.framework.validators import _DANGEROUS_JS_PATTERN
 
         assert not _DANGEROUS_JS_PATTERN.search(safe), f"Pattern should not match: {safe!r}"

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.models import MCPClientTLSConfig, PluginConfig
+from cpex.framework.models import MCPClientTLSConfig, PluginConfig
 
 
 def _write_pem(path: Path) -> str:

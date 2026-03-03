@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/unix/test_protocol.py
+"""Location: ./tests/unit/cpex/framework/external/unix/test_protocol.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -19,12 +19,13 @@ import pytest
 # Check if grpc/protobuf is available
 try:
     # First-Party
-    from mcpgateway.plugins.framework.external.unix.protocol import (
+    from cpex.framework.external.unix.protocol import (
         ProtocolError,
         read_message,
         write_message,
         write_message_async,
     )
+
     HAS_GRPC = True
 except ImportError:
     HAS_GRPC = False
@@ -32,6 +33,8 @@ except ImportError:
     Struct = None  # type: ignore
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed (required for protobuf)")
+
+
 class TestWriteMessage:
     """Tests for write_message function."""
 
@@ -223,7 +226,7 @@ class TestRoundTrip:
     @pytest.mark.asyncio
     async def test_round_trip_protobuf(self):
         """Test round-trip with actual protobuf message."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Create a protobuf message
         request = plugin_service_pb2.InvokeHookRequest()
@@ -259,7 +262,7 @@ class TestProtocolLimits:
 
     def test_write_message_exceeds_max_size(self):
         """Test write_message raises ProtocolError for oversized messages."""
-        from mcpgateway.plugins.framework.external.unix.protocol import MAX_MESSAGE_SIZE
+        from cpex.framework.external.unix.protocol import MAX_MESSAGE_SIZE
 
         data = b"x" * (MAX_MESSAGE_SIZE + 1)
         mock_writer = MagicMock()
@@ -270,7 +273,7 @@ class TestProtocolLimits:
     @pytest.mark.asyncio
     async def test_read_message_exceeds_max_size(self):
         """Test read_message raises ProtocolError for oversized messages."""
-        from mcpgateway.plugins.framework.external.unix.protocol import MAX_MESSAGE_SIZE
+        from cpex.framework.external.unix.protocol import MAX_MESSAGE_SIZE
 
         # Encode a length prefix larger than MAX_MESSAGE_SIZE
         oversized_length = MAX_MESSAGE_SIZE + 1

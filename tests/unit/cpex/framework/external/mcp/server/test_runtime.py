@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/server/test_runtime.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/server/test_runtime.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -16,8 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     PluginContext,
     PromptPosthookPayload,
@@ -30,13 +29,13 @@ from mcpgateway.plugins.framework import (
     ToolPreInvokePayload,
     ToolHookType,
 )
-from mcpgateway.plugins.framework.external.mcp.server import ExternalPluginServer
-import mcpgateway.plugins.framework.external.mcp.server.runtime as runtime
+from cpex.framework.external.mcp.server import ExternalPluginServer
+import cpex.framework.external.mcp.server.runtime as runtime
 
 
 @pytest.fixture
 def server():
-    server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+    server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml")
     asyncio.run(server.initialize())
     yield server
     asyncio.run(server.shutdown())
@@ -44,7 +43,7 @@ def server():
 
 @pytest.fixture
 def tool_server():
-    server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_tool_hooks.yaml")
+    server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_tool_hooks.yaml")
     asyncio.run(server.initialize())
     yield server
     asyncio.run(server.shutdown())
@@ -69,7 +68,9 @@ async def test_prompt_pre_fetch(monkeypatch, server):
     monkeypatch.setattr(runtime, "SERVER", server)
     payload = PromptPrehookPayload(prompt_id="123", args={"user": "This is so innovative"})
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        PromptHookType.PROMPT_PRE_FETCH, "DenyListPlugin", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert not result["result"]["continue_processing"]
@@ -78,11 +79,13 @@ async def test_prompt_pre_fetch(monkeypatch, server):
 @pytest.mark.asyncio
 async def test_prompt_post_fetch(monkeypatch, server):
     monkeypatch.setattr(runtime, "SERVER", server)
-    message = Message(content=TextContent(type="text", text="crap prompt"), role=Role.USER)
-    prompt_result = PromptResult(messages=[message])
+    message = SimpleNamespace(content=SimpleNamespace(type="text", text="crap prompt"), role="user")
+    prompt_result = SimpleNamespace(messages=[message])
     payload = PromptPosthookPayload(prompt_id="123", result=prompt_result)
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(PromptHookType.PROMPT_POST_FETCH, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        PromptHookType.PROMPT_POST_FETCH, "ReplaceBadWordsPlugin", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert result["result"]["continue_processing"]
@@ -94,7 +97,9 @@ async def test_tool_pre_invoke(monkeypatch, tool_server):
     monkeypatch.setattr(runtime, "SERVER", tool_server)
     payload = ToolPreInvokePayload(name="test_tool", args={"arg0": "bad argument"})
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, "ToolTestPlugin", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        ToolHookType.TOOL_PRE_INVOKE, "ToolTestPlugin", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert result["result"]["continue_processing"]
@@ -106,7 +111,9 @@ async def test_tool_post_invoke(monkeypatch, tool_server):
     monkeypatch.setattr(runtime, "SERVER", tool_server)
     payload = ToolPostInvokePayload(name="test_tool", result={"message": "wrong result"})
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(ToolHookType.TOOL_POST_INVOKE, "ToolTestPlugin", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        ToolHookType.TOOL_POST_INVOKE, "ToolTestPlugin", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert result["result"]["continue_processing"]
@@ -118,7 +125,9 @@ async def test_resource_pre_fetch(monkeypatch, server):
     monkeypatch.setattr(runtime, "SERVER", server)
     payload = ResourcePreFetchPayload(uri="resource", metadata={"arg0": "Good argument"})
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, "ResourceFilterExample", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        ResourceHookType.RESOURCE_PRE_FETCH, "ResourceFilterExample", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert not result["result"]["continue_processing"]
@@ -129,7 +138,9 @@ async def test_resource_post_fetch(monkeypatch, server):
     monkeypatch.setattr(runtime, "SERVER", server)
     payload = ResourcePostFetchPayload(uri="resource", content="content")
     context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
-    result = await runtime.invoke_hook(ResourceHookType.RESOURCE_POST_FETCH, "ResourceFilterExample", payload.model_dump(), context.model_dump())
+    result = await runtime.invoke_hook(
+        ResourceHookType.RESOURCE_POST_FETCH, "ResourceFilterExample", payload.model_dump(), context.model_dump()
+    )
     assert result
     assert result["result"]
     assert result["result"]["continue_processing"]
@@ -159,7 +170,7 @@ async def test_invoke_hook_requires_server(monkeypatch):
 
 
 def test_ssl_config_with_tls(tmp_path):
-    from mcpgateway.plugins.framework.models import MCPServerConfig, MCPServerTLSConfig
+    from cpex.framework.models import MCPServerConfig, MCPServerTLSConfig
 
     cert_path = tmp_path / "cert.pem"
     key_path = tmp_path / "key.pem"
@@ -213,7 +224,7 @@ async def test_start_health_check_server(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_streamable_http_async_with_ssl(monkeypatch):
-    from mcpgateway.plugins.framework.models import MCPServerConfig
+    from cpex.framework.models import MCPServerConfig
 
     server = object.__new__(runtime.SSLCapableFastMCP)
     server.server_config = MCPServerConfig(host="127.0.0.1", port=8000)
@@ -309,7 +320,7 @@ async def test_run_stdio_transport_ignores_malformed_server_port(monkeypatch):
         async def run_stdio_async(self):
             created["ran_stdio"] = True
 
-    from mcpgateway.plugins.framework.settings import settings
+    from cpex.framework.settings import settings
 
     settings.cache_clear()
     monkeypatch.setattr(runtime, "ExternalPluginServer", lambda: DummyServer())

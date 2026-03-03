@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/test_client_certificate_validation.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/test_client_certificate_validation.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -22,11 +22,13 @@ from cryptography.x509.oid import ExtensionOID, NameOID
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.external.mcp.tls_utils import create_ssl_context
-from mcpgateway.plugins.framework.models import MCPClientTLSConfig
+from cpex.framework.external.mcp.tls_utils import create_ssl_context
+from cpex.framework.models import MCPClientTLSConfig
 
 
-def generate_self_signed_cert(tmp_path: Path, common_name: str = "localhost", expired: bool = False) -> tuple[Path, Path]:
+def generate_self_signed_cert(
+    tmp_path: Path, common_name: str = "localhost", expired: bool = False
+) -> tuple[Path, Path]:
     """Generate a self-signed certificate for testing.
 
     Args:
@@ -198,7 +200,9 @@ def test_ssl_context_configured_for_certificate_validation(tmp_path):
 
     # Create TLS config pointing to self-signed cert as CA
     # This simulates a server presenting a self-signed certificate
-    tls_config = MCPClientTLSConfig(ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True
+    )
 
     # Create SSL context using the production utility function
     # This is the same function used in client.py for external plugin connections
@@ -234,7 +238,9 @@ def test_ssl_context_rejects_invalid_certificate():
         ca_cert_path, _ca_key_path = generate_self_signed_cert(Path(tmpdir), common_name="TestCA")
 
         # Create TLS config with strict verification
-        tls_config = MCPClientTLSConfig(ca_bundle=str(ca_cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True)
+        tls_config = MCPClientTLSConfig(
+            ca_bundle=str(ca_cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True
+        )
 
         # Create SSL context - this will succeed (configuration step)
         ssl_context = create_ssl_context(tls_config, "TestPlugin")
@@ -275,10 +281,18 @@ def test_ssl_context_accepts_valid_ca_signed_certificate(tmp_path):
     This test validates the actual production code path used in client.py.
     """
     # Generate CA and a certificate signed by that CA
-    ca_cert_path, server_cert_path, server_key_path = generate_ca_and_signed_cert(tmp_path, common_name="valid.example.com")
+    ca_cert_path, server_cert_path, server_key_path = generate_ca_and_signed_cert(
+        tmp_path, common_name="valid.example.com"
+    )
 
     # Create TLS config with the CA certificate
-    tls_config = MCPClientTLSConfig(ca_bundle=str(ca_cert_path), certfile=str(server_cert_path), keyfile=str(server_key_path), verify=True, check_hostname=True)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(ca_cert_path),
+        certfile=str(server_cert_path),
+        keyfile=str(server_key_path),
+        verify=True,
+        check_hostname=True,
+    )
 
     # Create SSL context using the production utility function
     ssl_context = create_ssl_context(tls_config, "TestPlugin")
@@ -315,7 +329,9 @@ def test_expired_certificate_detection(tmp_path):
     assert cert.not_valid_before_utc < now, "Certificate notBefore should be in the past"
 
     # Create TLS config with the expired certificate
-    tls_config = MCPClientTLSConfig(ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=False)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=False
+    )
 
     # Create SSL context using the production utility function
     ssl_context = create_ssl_context(tls_config, "TestPlugin")
@@ -375,10 +391,18 @@ def test_ssl_context_configuration_for_mtls(tmp_path):
     This test validates the actual production code path used in client.py.
     """
     # Generate CA and certificates
-    ca_cert_path, client_cert_path, client_key_path = generate_ca_and_signed_cert(tmp_path, common_name="client.example.com")
+    ca_cert_path, client_cert_path, client_key_path = generate_ca_and_signed_cert(
+        tmp_path, common_name="client.example.com"
+    )
 
     # Create TLS config for mTLS
-    tls_config = MCPClientTLSConfig(ca_bundle=str(ca_cert_path), certfile=str(client_cert_path), keyfile=str(client_key_path), verify=True, check_hostname=True)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(ca_cert_path),
+        certfile=str(client_cert_path),
+        keyfile=str(client_key_path),
+        verify=True,
+        check_hostname=True,
+    )
 
     # Create SSL context using the production utility function
     ssl_context = create_ssl_context(tls_config, "TestPlugin")
@@ -405,7 +429,9 @@ def test_ssl_context_with_verification_disabled(tmp_path):
     cert_path, _key_path = generate_self_signed_cert(tmp_path, common_name="novalidate.example.com")
 
     # Create TLS config with verification disabled
-    tls_config = MCPClientTLSConfig(ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=False, check_hostname=False)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=False, check_hostname=False
+    )
 
     # Create SSL context using the production utility function
     ssl_context = create_ssl_context(tls_config, "TestPlugin")
@@ -439,7 +465,9 @@ def test_certificate_with_wrong_hostname_would_fail(tmp_path):
     assert "wrong.example.com" not in san_names, "Certificate should not have wrong.example.com in SAN"
 
     # Create TLS config with hostname checking enabled
-    tls_config = MCPClientTLSConfig(ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True)
+    tls_config = MCPClientTLSConfig(
+        ca_bundle=str(cert_path), certfile=None, keyfile=None, verify=True, check_hostname=True
+    )
 
     # Create SSL context using the production utility function
     ssl_context = create_ssl_context(tls_config, "TestPlugin")

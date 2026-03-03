@@ -151,17 +151,39 @@ lint: lint-fix
 
 .PHONY: lint-fix
 lint-fix:
-	@echo "🔧 Fixing lint issues..."
-	@$(MAKE) --no-print-directory black TARGET="$(TARGET)"
-	@$(MAKE) --no-print-directory ruff-fix TARGET="$(TARGET)"
-	@echo "✅  Lint issues fixed"
+	@# Handle file arguments
+	@target_file="$(word 2,$(MAKECMDGOALS))"; \
+	if [ -n "$$target_file" ] && [ "$$target_file" != "" ]; then \
+		actual_target="$$target_file"; \
+	else \
+		actual_target="$(TARGET)"; \
+	fi; \
+	for target in $$(echo $$actual_target); do \
+		if [ ! -e "$$target" ]; then \
+			echo "❌ File/directory not found: $$target"; \
+			exit 1; \
+		fi; \
+	done; \
+	echo "🔧 Fixing lint issues in $$actual_target..."; \
+	$(MAKE) --no-print-directory black TARGET="$$actual_target"; \
+	$(MAKE) --no-print-directory isort TARGET="$$actual_target"; \
+	$(MAKE) --no-print-directory ruff-fix TARGET="$$actual_target"; \
+	echo "✅  Lint issues fixed"
 
 .PHONY: lint-check
 lint-check:
-	@echo "🔍 Checking for lint issues..."
-	@$(MAKE) --no-print-directory black-check TARGET="$(TARGET)"
-	@$(MAKE) --no-print-directory ruff-check TARGET="$(TARGET)"
-	@echo "✅  Lint check complete"
+	@# Handle file arguments
+	@target_file="$(word 2,$(MAKECMDGOALS))"; \
+	if [ -n "$$target_file" ] && [ "$$target_file" != "" ]; then \
+		actual_target="$$target_file"; \
+	else \
+		actual_target="$(TARGET)"; \
+	fi; \
+	echo "🔍 Checking for lint issues..."; \
+	$(MAKE) --no-print-directory ruff-check TARGET="$$actual_target"; \
+	$(MAKE) --no-print-directory black-check TARGET="$$actual_target"; \
+	$(MAKE) --no-print-directory isort-check TARGET="$$actual_target"; \
+	echo "✅  Lint check complete"
 
 .PHONY: type-check
 type-check:

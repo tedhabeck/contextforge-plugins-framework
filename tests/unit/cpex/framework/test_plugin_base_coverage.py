@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Coverage tests for mcpgateway.plugins.framework.base — PluginRef and HookRef."""
+"""Coverage tests for cpex.framework.base — PluginRef and HookRef."""
 
 # Standard
 from unittest.mock import MagicMock, patch
@@ -8,15 +8,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-from mcpgateway.plugins.framework.decorator import hook
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.models import PluginCondition, PluginConfig, PluginContext, PluginMode, PluginPayload, PluginResult
-
+from cpex.framework.base import HookRef, Plugin, PluginRef
+from cpex.framework.decorator import hook
+from cpex.framework.errors import PluginError
+from cpex.framework.models import PluginCondition, PluginConfig, PluginContext, PluginMode, PluginPayload, PluginResult
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config(**overrides) -> PluginConfig:
     defaults = dict(
@@ -184,77 +184,93 @@ class TestValidateTypeHints:
     def test_no_registry_types_skips(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         registry = MagicMock()
         registry.get_payload_type.return_value = None
         registry.get_result_type.return_value = None
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry):
+        with patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry):
             hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")
 
     def test_get_type_hints_exception(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         registry = MagicMock()
         registry.get_payload_type.return_value = PluginPayload
         registry.get_result_type.return_value = PluginResult
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry), \
-             patch("typing.get_type_hints", side_effect=Exception("fail")):
+        with (
+            patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry),
+            patch("typing.get_type_hints", side_effect=Exception("fail")),
+        ):
             hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")
 
     def test_missing_payload_hint_raises(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         registry = MagicMock()
         registry.get_payload_type.return_value = PluginPayload
         registry.get_result_type.return_value = PluginResult
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry), \
-             patch("typing.get_type_hints", return_value={"return": PluginResult}):
+        with (
+            patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry),
+            patch("typing.get_type_hints", return_value={"return": PluginResult}),
+        ):
             with pytest.raises(PluginError, match="missing type hint"):
                 hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")
 
     def test_wrong_payload_type_raises(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         param_name = params[0].name
         registry = MagicMock()
         registry.get_payload_type.return_value = PluginPayload
         registry.get_result_type.return_value = PluginResult
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry), \
-             patch("typing.get_type_hints", return_value={param_name: str, "return": PluginResult}):
+        with (
+            patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry),
+            patch("typing.get_type_hints", return_value={param_name: str, "return": PluginResult}),
+        ):
             with pytest.raises(PluginError, match="incorrect type hint"):
                 hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")
 
     def test_missing_return_hint_raises(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         param_name = params[0].name
         registry = MagicMock()
         registry.get_payload_type.return_value = PluginPayload
         registry.get_result_type.return_value = PluginResult
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry), \
-             patch("typing.get_type_hints", return_value={param_name: PluginPayload}):
+        with (
+            patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry),
+            patch("typing.get_type_hints", return_value={param_name: PluginPayload}),
+        ):
             with pytest.raises(PluginError, match="missing return type hint"):
                 hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")
 
     def test_wrong_return_type_raises(self):
         hook_ref = self._make_hook_ref(ConcretePlugin)
         import inspect
+
         func = hook_ref.hook
         params = list(inspect.signature(func).parameters.values())
         param_name = params[0].name
         registry = MagicMock()
         registry.get_payload_type.return_value = PluginPayload
         registry.get_result_type.return_value = PluginResult
-        with patch("mcpgateway.plugins.framework.hooks.registry.get_hook_registry", return_value=registry), \
-             patch("typing.get_type_hints", return_value={param_name: PluginPayload, "return": str}):
+        with (
+            patch("cpex.framework.hooks.registry.get_hook_registry", return_value=registry),
+            patch("typing.get_type_hints", return_value={param_name: PluginPayload, "return": str}),
+        ):
             with pytest.raises(PluginError, match="incorrect return type hint"):
                 hook_ref._validate_type_hints("tool_pre_invoke", func, params, "test_plugin")

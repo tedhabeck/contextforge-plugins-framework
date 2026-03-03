@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/mcp/test_tls_utils.py
+"""Location: ./tests/unit/cpex/framework/external/mcp/test_tls_utils.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -15,9 +15,9 @@ from unittest.mock import patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.external.mcp.tls_utils import create_ssl_context
-from mcpgateway.plugins.framework.models import MCPClientTLSConfig
+from cpex.framework.errors import PluginError
+from cpex.framework.external.mcp.tls_utils import create_ssl_context
+from cpex.framework.models import MCPClientTLSConfig
 
 
 class TestCreateSSLContextBasicConfig:
@@ -101,7 +101,9 @@ class TestCreateSSLContextClientCertificates:
         cert_file.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----")
         key_file.write_text("-----BEGIN ENCRYPTED PRIVATE KEY-----\ntest\n-----END ENCRYPTED PRIVATE KEY-----")
 
-        tls_config = MCPClientTLSConfig(certfile=str(cert_file), keyfile=str(key_file), keyfile_password="secret123", verify=False)
+        tls_config = MCPClientTLSConfig(
+            certfile=str(cert_file), keyfile=str(key_file), keyfile_password="secret123", verify=False
+        )
 
         # Will fail to load the invalid cert
         with pytest.raises(PluginError):
@@ -201,7 +203,7 @@ class TestCreateSSLContextLogging:
         """Test that disabling verification logs a warning."""
         tls_config = MCPClientTLSConfig(verify=False)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger") as mock_logger:
+        with patch("cpex.framework.external.mcp.tls_utils.logger") as mock_logger:
             create_ssl_context(tls_config, "InsecurePlugin")
 
             # Should log warning about disabled verification
@@ -213,7 +215,7 @@ class TestCreateSSLContextLogging:
         """Test that disabling hostname checking logs a warning."""
         tls_config = MCPClientTLSConfig(verify=True, check_hostname=False)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger") as mock_logger:
+        with patch("cpex.framework.external.mcp.tls_utils.logger") as mock_logger:
             create_ssl_context(tls_config, "NoHostnamePlugin")
 
             # Should log warning about disabled hostname verification
@@ -231,7 +233,7 @@ class TestCreateSSLContextLogging:
 
         tls_config = MCPClientTLSConfig(certfile=str(cert_file), keyfile=str(key_file), verify=False)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger"):
+        with patch("cpex.framework.external.mcp.tls_utils.logger"):
             # Will fail but we can check if debug logging was attempted
             try:
                 create_ssl_context(tls_config, "mTLSPlugin")
@@ -245,7 +247,7 @@ class TestCreateSSLContextLogging:
         """Test that SSL context configuration is logged at debug level."""
         tls_config = MCPClientTLSConfig(verify=True)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger") as mock_logger:
+        with patch("cpex.framework.external.mcp.tls_utils.logger") as mock_logger:
             create_ssl_context(tls_config, "DebugPlugin")
 
             # Should log debug message with context details
@@ -259,7 +261,7 @@ class TestCreateSSLContextLogging:
 
         tls_config = MCPClientTLSConfig(ca_bundle=str(ca_file), verify=True)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger") as mock_logger:
+        with patch("cpex.framework.external.mcp.tls_utils.logger") as mock_logger:
             with pytest.raises(PluginError):
                 create_ssl_context(tls_config, "ErrorPlugin")
 
@@ -358,7 +360,7 @@ class TestCreateSSLContextEdgeCases:
         """Test the combination of verify=True with check_hostname=False."""
         tls_config = MCPClientTLSConfig(verify=True, check_hostname=False)
 
-        with patch("mcpgateway.plugins.framework.external.mcp.tls_utils.logger") as mock_logger:
+        with patch("cpex.framework.external.mcp.tls_utils.logger") as mock_logger:
             ssl_context = create_ssl_context(tls_config, "PartialSecurityPlugin")
 
             # Should warn about hostname verification being disabled

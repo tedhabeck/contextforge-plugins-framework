@@ -8,7 +8,7 @@ Self-contained security validation for the plugin framework.
 
 Contains only the validation methods actually used by framework models
 (MCPClientConfig), with hardcoded defaults to avoid any dependency on
-mcpgateway.config.settings.
+the outer package.
 
 Examples:
     >>> SecurityValidator.validate_url("https://example.com")
@@ -181,7 +181,9 @@ class SecurityValidator:
                         addr = ipaddress.ip_address(hostname)
                         for network in _BLOCKED_NETWORKS:
                             if addr in network:
-                                raise ValueError(f"{field_name} contains IP address blocked by SSRF protection ({hostname})")
+                                raise ValueError(
+                                    f"{field_name} contains IP address blocked by SSRF protection ({hostname})"
+                                )
                     except ValueError as ip_err:
                         if "blocked by SSRF" in str(ip_err):
                             raise

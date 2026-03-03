@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/server/test_runtime.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/server/test_runtime.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -17,6 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework.models import GRPCServerConfig, GRPCServerTLSConfig
+
 # Check if grpc is available
 try:
     import grpc  # noqa: F401
@@ -27,16 +30,13 @@ except ImportError:
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed")
 
-# First-Party
-from mcpgateway.plugins.framework.models import GRPCServerConfig, GRPCServerTLSConfig
-
 
 class TestGrpcPluginRuntimeInit:
     """Tests for GrpcPluginRuntime initialization."""
 
     def test_init_default_config(self):
         """Test runtime initialization with default config."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
         # config_path can be None (will use default path later)
@@ -45,14 +45,14 @@ class TestGrpcPluginRuntimeInit:
 
     def test_init_with_config_path(self):
         """Test runtime initialization with custom config path."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime(config_path="/custom/config.yaml")
         assert runtime._config_path == "/custom/config.yaml"
 
     def test_init_with_host_port_override(self):
         """Test runtime initialization with host/port override."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime(host="127.0.0.1", port=50052)
         assert runtime._host_override == "127.0.0.1"
@@ -64,7 +64,7 @@ class TestGrpcPluginRuntimeGetServerConfig:
 
     def test_get_server_config_from_plugin_server(self):
         """Test getting server config from plugin server."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
 
@@ -80,7 +80,7 @@ class TestGrpcPluginRuntimeGetServerConfig:
 
     def test_get_server_config_from_env(self):
         """Test getting server config from environment variables."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
 
@@ -100,7 +100,7 @@ class TestGrpcPluginRuntimeGetServerConfig:
 
     def test_get_server_config_defaults(self):
         """Test getting default server config when no config available."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
 
@@ -122,7 +122,7 @@ class TestGrpcPluginRuntimeStart:
     @pytest.mark.asyncio
     async def test_start_creates_server(self):
         """Test start creates gRPC server."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
 
@@ -135,7 +135,7 @@ class TestGrpcPluginRuntimeStart:
         mock_grpc_server.add_insecure_port = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.ExternalPluginServer",
+            "cpex.framework.external.grpc.server.runtime.ExternalPluginServer",
             return_value=mock_plugin_server,
         ):
             with patch("grpc.aio.server", return_value=mock_grpc_server):
@@ -149,7 +149,7 @@ class TestGrpcPluginRuntimeStart:
     @pytest.mark.asyncio
     async def test_start_with_uds(self, tmp_path):
         """Test start with Unix domain socket configuration."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         uds_path = str(tmp_path / "grpc.sock")
         runtime = GrpcPluginRuntime()
@@ -163,7 +163,7 @@ class TestGrpcPluginRuntimeStart:
         mock_grpc_server.add_insecure_port = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.ExternalPluginServer",
+            "cpex.framework.external.grpc.server.runtime.ExternalPluginServer",
             return_value=mock_plugin_server,
         ):
             with patch("grpc.aio.server", return_value=mock_grpc_server):
@@ -178,7 +178,7 @@ class TestGrpcPluginRuntimeStart:
     @pytest.mark.asyncio
     async def test_start_with_tls(self, tmp_path):
         """Test start with TLS configuration."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         cert_file = tmp_path / "server.pem"
         key_file = tmp_path / "server-key.pem"
@@ -204,12 +204,12 @@ class TestGrpcPluginRuntimeStart:
         mock_credentials = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.ExternalPluginServer",
+            "cpex.framework.external.grpc.server.runtime.ExternalPluginServer",
             return_value=mock_plugin_server,
         ):
             with patch("grpc.aio.server", return_value=mock_grpc_server):
                 with patch(
-                    "mcpgateway.plugins.framework.external.grpc.server.runtime.create_server_credentials",
+                    "cpex.framework.external.grpc.server.runtime.create_server_credentials",
                     return_value=mock_credentials,
                 ):
                     runtime._shutdown_event.set()
@@ -224,7 +224,7 @@ class TestGrpcPluginRuntimeStop:
     @pytest.mark.asyncio
     async def test_stop_graceful_shutdown(self):
         """Test stop performs graceful shutdown."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
 
@@ -245,7 +245,7 @@ class TestGrpcPluginRuntimeStop:
     @pytest.mark.asyncio
     async def test_stop_no_server(self):
         """Test stop handles case when server is None."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
         # Server not started
@@ -260,16 +260,14 @@ class TestGrpcPluginRuntimeIntegration:
     @pytest.mark.asyncio
     async def test_full_lifecycle(self, tmp_path):
         """Test full start/stop lifecycle."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 plugins: []
 plugin_settings:
   parallel_execution_within_band: false
-"""
-        )
+""")
 
         runtime = GrpcPluginRuntime(config_path=str(config_file))
 
@@ -284,7 +282,7 @@ plugin_settings:
         mock_grpc_server.add_insecure_port = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.ExternalPluginServer",
+            "cpex.framework.external.grpc.server.runtime.ExternalPluginServer",
             return_value=mock_plugin_server,
         ):
             with patch("grpc.aio.server", return_value=mock_grpc_server):
@@ -302,7 +300,7 @@ class TestGrpcPluginRuntimeRequestShutdown:
 
     def test_request_shutdown_sets_event(self):
         """Test request_shutdown sets the shutdown event."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
         assert not runtime._shutdown_event.is_set()
@@ -317,7 +315,7 @@ class TestGrpcPluginRuntimeRunServer:
     @pytest.mark.asyncio
     async def test_run_server_creates_runtime_and_starts(self):
         """Test run_server creates a runtime and runs start/stop."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import run_server
+        from cpex.framework.external.grpc.server.runtime import run_server
 
         mock_runtime = MagicMock()
         mock_runtime.start = AsyncMock()
@@ -325,7 +323,7 @@ class TestGrpcPluginRuntimeRunServer:
         mock_runtime.request_shutdown = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.GrpcPluginRuntime",
+            "cpex.framework.external.grpc.server.runtime.GrpcPluginRuntime",
             return_value=mock_runtime,
         ):
             # Make start() immediately complete by making shutdown_event set
@@ -341,7 +339,7 @@ class TestGrpcPluginRuntimeRunServer:
     @pytest.mark.asyncio
     async def test_run_server_stop_called_on_exception(self):
         """Test run_server calls stop even when start raises."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import run_server
+        from cpex.framework.external.grpc.server.runtime import run_server
 
         mock_runtime = MagicMock()
         mock_runtime.start = AsyncMock(side_effect=RuntimeError("Start failed"))
@@ -349,7 +347,7 @@ class TestGrpcPluginRuntimeRunServer:
         mock_runtime.request_shutdown = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.GrpcPluginRuntime",
+            "cpex.framework.external.grpc.server.runtime.GrpcPluginRuntime",
             return_value=mock_runtime,
         ):
             with pytest.raises(RuntimeError, match="Start failed"):
@@ -364,7 +362,7 @@ class TestGrpcPluginRuntimeMain:
 
     def test_main_keyboard_interrupt(self):
         """Test main handles KeyboardInterrupt gracefully."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import main
+        from cpex.framework.external.grpc.server.runtime import main
 
         def _raise_keyboard_interrupt(awaitable):
             awaitable.close()
@@ -372,7 +370,7 @@ class TestGrpcPluginRuntimeMain:
 
         with patch("sys.argv", ["runtime"]):
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.server.runtime.asyncio.run",
+                "cpex.framework.external.grpc.server.runtime.asyncio.run",
                 side_effect=_raise_keyboard_interrupt,
             ):
                 with pytest.raises(SystemExit) as exc_info:
@@ -381,7 +379,7 @@ class TestGrpcPluginRuntimeMain:
 
     def test_main_exception_exits_with_error(self):
         """Test main exits with code 1 on unexpected exception."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import main
+        from cpex.framework.external.grpc.server.runtime import main
 
         def _raise_runtime_error(awaitable):
             awaitable.close()
@@ -389,7 +387,7 @@ class TestGrpcPluginRuntimeMain:
 
         with patch("sys.argv", ["runtime"]):
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.server.runtime.asyncio.run",
+                "cpex.framework.external.grpc.server.runtime.asyncio.run",
                 side_effect=_raise_runtime_error,
             ):
                 with pytest.raises(SystemExit) as exc_info:
@@ -398,11 +396,21 @@ class TestGrpcPluginRuntimeMain:
 
     def test_main_parses_arguments(self):
         """Test main correctly parses command line arguments."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import main
+        from cpex.framework.external.grpc.server.runtime import main
 
         with patch(
             "sys.argv",
-            ["runtime", "--config", "/custom/config.yaml", "--host", "127.0.0.1", "--port", "50052", "--log-level", "DEBUG"],
+            [
+                "runtime",
+                "--config",
+                "/custom/config.yaml",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "50052",
+                "--log-level",
+                "DEBUG",
+            ],
         ):
             captured = {}
 
@@ -412,7 +420,7 @@ class TestGrpcPluginRuntimeMain:
                 return None
 
             with patch(
-                "mcpgateway.plugins.framework.external.grpc.server.runtime.asyncio.run",
+                "cpex.framework.external.grpc.server.runtime.asyncio.run",
             ) as mock_run:
                 mock_run.side_effect = _close_and_return
                 main()
@@ -426,7 +434,7 @@ class TestGrpcPluginRuntimeUdsChmod:
     @pytest.mark.asyncio
     async def test_start_sets_socket_permissions(self, tmp_path):
         """Test start sets permissions on UDS socket file."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         uds_path = str(tmp_path / "grpc.sock")
         runtime = GrpcPluginRuntime()
@@ -440,7 +448,7 @@ class TestGrpcPluginRuntimeUdsChmod:
         mock_grpc_server.add_insecure_port = MagicMock()
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.ExternalPluginServer",
+            "cpex.framework.external.grpc.server.runtime.ExternalPluginServer",
             return_value=mock_plugin_server,
         ):
             with patch("grpc.aio.server", return_value=mock_grpc_server):
@@ -462,7 +470,7 @@ class TestGrpcPluginRuntimeGetServerConfigNoPluginServer:
 
     def test_get_server_config_no_plugin_server_falls_to_env(self):
         """Test _get_server_config falls through to env when _plugin_server is None."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
         runtime._plugin_server = None
@@ -474,7 +482,7 @@ class TestGrpcPluginRuntimeGetServerConfigNoPluginServer:
 
     def test_get_server_config_no_plugin_server_falls_to_defaults(self):
         """Test _get_server_config falls to defaults when _plugin_server is None and no env."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import GrpcPluginRuntime
+        from cpex.framework.external.grpc.server.runtime import GrpcPluginRuntime
 
         runtime = GrpcPluginRuntime()
         runtime._plugin_server = None
@@ -491,7 +499,7 @@ class TestGrpcPluginRuntimeSignalHandler:
     @pytest.mark.asyncio
     async def test_signal_handler_calls_request_shutdown(self):
         """Test that the signal handler triggers request_shutdown."""
-        from mcpgateway.plugins.framework.external.grpc.server.runtime import run_server
+        from cpex.framework.external.grpc.server.runtime import run_server
 
         captured_handlers = {}
 
@@ -512,7 +520,7 @@ class TestGrpcPluginRuntimeSignalHandler:
         mock_loop.add_signal_handler = MagicMock(side_effect=capture_signal_handler)
 
         with patch(
-            "mcpgateway.plugins.framework.external.grpc.server.runtime.GrpcPluginRuntime",
+            "cpex.framework.external.grpc.server.runtime.GrpcPluginRuntime",
             return_value=mock_runtime,
         ):
             with patch("asyncio.get_running_loop", return_value=mock_loop):

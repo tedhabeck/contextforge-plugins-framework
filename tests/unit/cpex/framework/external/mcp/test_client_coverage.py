@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Coverage tests for mcpgateway.plugins.framework.external.mcp.client."""
+"""Coverage tests for cpex.framework.external.mcp.client."""
 
 # Standard
 import asyncio
@@ -13,17 +13,17 @@ import orjson
 import pytest
 
 # First-Party
-from mcpgateway.common.models import TransportType
-from mcpgateway.plugins.framework.base import PluginRef
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.external.mcp.client import ExternalHookRef, ExternalPlugin
-from mcpgateway.plugins.framework.models import (
+from cpex.framework.base import PluginRef
+from cpex.framework.errors import PluginError
+from cpex.framework.external.mcp.client import ExternalHookRef, ExternalPlugin
+from cpex.framework.models import (
     GlobalContext,
     MCPClientConfig,
     MCPClientTLSConfig,
     PluginConfig,
     PluginContext,
     PluginResult,
+    TransportType,
 )
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def _make_stdio_config(**overrides) -> PluginConfig:
 
 
 def _make_plugin(config: PluginConfig | None = None) -> ExternalPlugin:
-    with patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.current_task", return_value=None):
+    with patch("cpex.framework.external.mcp.client.asyncio.current_task", return_value=None):
         return ExternalPlugin(config or _make_http_config())
 
 
@@ -77,7 +77,7 @@ class TestExternalHookRef:
 
     @pytest.mark.asyncio
     async def test_not_external_raises(self):
-        from mcpgateway.plugins.framework.base import Plugin
+        from cpex.framework.base import Plugin
 
         config = PluginConfig(name="basic", kind="test.Plugin", version="1.0", hooks=["hook"])
         plugin = Plugin(config)
@@ -96,7 +96,7 @@ class TestInvokeHook:
     async def test_no_result_type_raises(self):
         plugin = _make_plugin()
         plugin._session = AsyncMock()
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = None
             with pytest.raises(PluginError, match="not registered"):
                 await plugin.invoke_hook("unknown_hook", MagicMock(), MagicMock())
@@ -105,7 +105,7 @@ class TestInvokeHook:
     async def test_no_session_raises(self):
         plugin = _make_plugin()
         plugin._session = None
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             with pytest.raises(PluginError, match="session not initialized"):
                 await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), MagicMock())
@@ -131,7 +131,7 @@ class TestInvokeHook:
 
         ctx = PluginContext(global_context=GlobalContext(request_id="1"))
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             result = await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), ctx)
 
@@ -151,7 +151,7 @@ class TestInvokeHook:
         call_result.content = [text_content]
         session.call_tool.return_value = call_result
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             with pytest.raises(PluginError, match="Error trying to decode json"):
                 await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), MagicMock())
@@ -168,7 +168,7 @@ class TestInvokeHook:
         call_result.content = [text_content]
         session.call_tool.return_value = call_result
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             with pytest.raises(PluginError, match="bad"):
                 await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), MagicMock())
@@ -209,9 +209,9 @@ class TestConnectHTTP:
         mock_session.list_tools = AsyncMock(return_value=list_tools_result)
 
         with (
-            patch("mcpgateway.plugins.framework.external.mcp.client.streamablehttp_client", side_effect=mock_streamable),
-            patch("mcpgateway.plugins.framework.external.mcp.client.ClientSession", return_value=mock_session),
-            patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
+            patch("cpex.framework.external.mcp.client.streamablehttp_client", side_effect=mock_streamable),
+            patch("cpex.framework.external.mcp.client.ClientSession", return_value=mock_session),
+            patch("cpex.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
         ):
             plugin._exit_stack = AsyncExitStack()
             await plugin._ExternalPlugin__connect_to_http_server("http://localhost:9999/mcp")
@@ -231,8 +231,8 @@ class TestConnectHTTP:
             return MockCtx()
 
         with (
-            patch("mcpgateway.plugins.framework.external.mcp.client.streamablehttp_client", side_effect=mock_streamable),
-            patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
+            patch("cpex.framework.external.mcp.client.streamablehttp_client", side_effect=mock_streamable),
+            patch("cpex.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
         ):
             plugin._exit_stack = AsyncExitStack()
             with pytest.raises(PluginError, match="connection failed after 3 attempts"):
@@ -319,7 +319,7 @@ class TestTerminateHTTPSession:
         plugin._session_id = "test-session"
         plugin._http_client_factory = None
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.httpx.AsyncClient") as mock_cls:
+        with patch("cpex.framework.external.mcp.client.httpx.AsyncClient") as mock_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -415,7 +415,7 @@ class TestResolveStdioCommandSync:
 
     def test_build_stdio_env(self):
         """Test __build_stdio_env merges env correctly."""
-        with patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.current_task", return_value=None):
+        with patch("cpex.framework.external.mcp.client.asyncio.current_task", return_value=None):
             plugin = _make_plugin(_make_stdio_config())
         env = plugin._ExternalPlugin__build_stdio_env({"MY_VAR": "val"})
         assert env["MY_VAR"] == "val"
@@ -444,8 +444,8 @@ class TestConnectHTTPUDS:
 
         # Mock the connection to fail immediately so we can check the warning
         with (
-            patch("mcpgateway.plugins.framework.external.mcp.client.streamablehttp_client", return_value=FailCtx()),
-            patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
+            patch("cpex.framework.external.mcp.client.streamablehttp_client", return_value=FailCtx()),
+            patch("cpex.framework.external.mcp.client.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(PluginError),
         ):
             plugin._exit_stack = AsyncExitStack()
@@ -516,7 +516,10 @@ class TestInitialize:
             mcp=config.mcp,
         )
 
-        with patch.object(plugin, "_ExternalPlugin__connect_to_http_server", new=AsyncMock()), patch.object(plugin, "_ExternalPlugin__get_plugin_config", new=AsyncMock(return_value=remote_config)):
+        with (
+            patch.object(plugin, "_ExternalPlugin__connect_to_http_server", new=AsyncMock()),
+            patch.object(plugin, "_ExternalPlugin__get_plugin_config", new=AsyncMock(return_value=remote_config)),
+        ):
             await plugin.initialize()
 
         assert plugin.config.description == "remote description"
@@ -589,11 +592,11 @@ class TestHTTPClientFactory:
         mock_http_settings.skip_ssl_verify = False
 
         with (
-            patch("mcpgateway.plugins.framework.external.mcp.client.streamablehttp_client", return_value=OkCtx()),
-            patch("mcpgateway.plugins.framework.external.mcp.client.ClientSession", return_value=mock_session),
-            patch("mcpgateway.plugins.framework.external.mcp.client.create_ssl_context", return_value="sslctx"),
-            patch("mcpgateway.plugins.framework.external.mcp.client.httpx.AsyncClient") as mock_httpx,
-            patch("mcpgateway.plugins.framework.external.mcp.client.get_http_client_settings", return_value=mock_http_settings),
+            patch("cpex.framework.external.mcp.client.streamablehttp_client", return_value=OkCtx()),
+            patch("cpex.framework.external.mcp.client.ClientSession", return_value=mock_session),
+            patch("cpex.framework.external.mcp.client.create_ssl_context", return_value="sslctx"),
+            patch("cpex.framework.external.mcp.client.httpx.AsyncClient") as mock_httpx,
+            patch("cpex.framework.external.mcp.client.get_http_client_settings", return_value=mock_http_settings),
         ):
             plugin._exit_stack = AsyncExitStack()
             await plugin._ExternalPlugin__connect_to_http_server("http://localhost:9999/mcp")
@@ -622,7 +625,9 @@ class TestGetPluginConfig:
         session = AsyncMock()
         plugin._session = session
 
-        conf = PluginConfig(name=plugin.name, kind="external", version="1.0.0", hooks=["prompt_pre_fetch"], mcp=_make_http_config().mcp)
+        conf = PluginConfig(
+            name=plugin.name, kind="external", version="1.0.0", hooks=["prompt_pre_fetch"], mcp=_make_http_config().mcp
+        )
         text_content = TextContent(type="text", text=orjson.dumps(conf.model_dump()).decode())
         call_result = MagicMock()
         call_result.content = [MagicMock(), text_content]
@@ -655,9 +660,11 @@ class TestInvokeHookMoreBranches:
         call_result.content = [MagicMock(), text_content]
         session.call_tool.return_value = call_result
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
-            result = await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), PluginContext(global_context=GlobalContext(request_id="1")))
+            result = await plugin.invoke_hook(
+                "prompt_pre_fetch", MagicMock(), PluginContext(global_context=GlobalContext(request_id="1"))
+            )
 
         assert result.continue_processing is True
 
@@ -667,10 +674,12 @@ class TestInvokeHookMoreBranches:
         session = AsyncMock()
         session.call_tool = AsyncMock(side_effect=RuntimeError("boom"))
         plugin._session = session
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             with pytest.raises(PluginError):
-                await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), PluginContext(global_context=GlobalContext(request_id="1")))
+                await plugin.invoke_hook(
+                    "prompt_pre_fetch", MagicMock(), PluginContext(global_context=GlobalContext(request_id="1"))
+                )
 
     @pytest.mark.asyncio
     async def test_invoke_hook_context_only_then_result_loops(self):
@@ -679,7 +688,9 @@ class TestInvokeHookMoreBranches:
         session = AsyncMock()
         plugin._session = session
 
-        ctx_only = {"context": {"state": {"k": "v"}, "metadata": {}, "global_context": {"request_id": "1", "state": {}}}}
+        ctx_only = {
+            "context": {"state": {"k": "v"}, "metadata": {}, "global_context": {"request_id": "1", "state": {}}}
+        }
         res = {"result": {"continue_processing": True}}
         call_result = MagicMock()
         call_result.content = [
@@ -689,7 +700,7 @@ class TestInvokeHookMoreBranches:
         session.call_tool.return_value = call_result
 
         ctx = PluginContext(global_context=GlobalContext(request_id="1"))
-        with patch("mcpgateway.plugins.framework.external.mcp.client.get_hook_registry") as mock_reg:
+        with patch("cpex.framework.external.mcp.client.get_hook_registry") as mock_reg:
             mock_reg.return_value.get_result_type.return_value = PluginResult
             result = await plugin.invoke_hook("prompt_pre_fetch", MagicMock(), ctx)
 
@@ -753,7 +764,7 @@ class TestRunStdioSessionBranches:
             async def __aexit__(self, *args):
                 return False
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.stdio_client", return_value=FailCtx()):
+        with patch("cpex.framework.external.mcp.client.stdio_client", return_value=FailCtx()):
             await plugin._ExternalPlugin__run_stdio_session(None, ["python"], None, None)
 
         assert plugin._stdio_error is not None
@@ -796,8 +807,8 @@ class TestRunStdioSessionBranches:
         try:
             with (
                 patch.object(plugin, "_ExternalPlugin__resolve_stdio_command", return_value=("python", ["-c", "pass"])),
-                patch("mcpgateway.plugins.framework.external.mcp.client.stdio_client", return_value=OkCtx()),
-                patch("mcpgateway.plugins.framework.external.mcp.client.ClientSession", return_value=mock_session),
+                patch("cpex.framework.external.mcp.client.stdio_client", return_value=OkCtx()),
+                patch("cpex.framework.external.mcp.client.ClientSession", return_value=mock_session),
             ):
                 await plugin._ExternalPlugin__run_stdio_session(None, ["python"], None, None)
         finally:
@@ -825,8 +836,8 @@ class TestRunStdioSessionBranches:
 
         with (
             patch.object(plugin, "_ExternalPlugin__resolve_stdio_command", return_value=("python", ["-c", "pass"])),
-            patch("mcpgateway.plugins.framework.external.mcp.client.stdio_client", return_value=OkCtx()),
-            patch("mcpgateway.plugins.framework.external.mcp.client.ClientSession", return_value=mock_session),
+            patch("cpex.framework.external.mcp.client.stdio_client", return_value=OkCtx()),
+            patch("cpex.framework.external.mcp.client.ClientSession", return_value=mock_session),
         ):
             await plugin._ExternalPlugin__run_stdio_session(None, ["python"], None, None)
 
@@ -858,7 +869,7 @@ class TestConnectStdioBranches:
             coro.close()
             raise RuntimeError("boom")
 
-        with patch("mcpgateway.plugins.framework.external.mcp.client.asyncio.create_task", side_effect=_raise):
+        with patch("cpex.framework.external.mcp.client.asyncio.create_task", side_effect=_raise):
             with pytest.raises(PluginError):
                 await plugin._ExternalPlugin__connect_to_stdio_server(None, ["python", "-c", "pass"], None, None)
 
@@ -868,7 +879,7 @@ class TestConnectHTTPMoreBranches:
     async def test_connect_http_range_empty_exits_loop(self):
         plugin = _make_plugin()
         plugin._exit_stack = AsyncExitStack()
-        with patch("mcpgateway.plugins.framework.external.mcp.client.range", return_value=[]):
+        with patch("cpex.framework.external.mcp.client.range", return_value=[]):
             # No attempts performed; should just fall through and return.
             await plugin._ExternalPlugin__connect_to_http_server("http://localhost:9999/mcp")
 
@@ -885,7 +896,7 @@ class TestTerminateHTTPSessionErrors:
         mock_client.delete = AsyncMock(side_effect=RuntimeError("delete failed"))
 
         plugin._http_client_factory = MagicMock(return_value=mock_client)
-        with caplog.at_level("DEBUG", logger="mcpgateway.plugins.framework.external.mcp.client"):
+        with caplog.at_level("DEBUG", logger="cpex.framework.external.mcp.client"):
             await plugin._ExternalPlugin__terminate_http_session()
 
         assert any("Failed to terminate streamable HTTP session" in r.message for r in caplog.records)

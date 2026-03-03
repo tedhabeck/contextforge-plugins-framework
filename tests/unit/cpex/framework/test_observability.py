@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_observability.py
+"""Location: ./tests/unit/cpex/framework/test_observability.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     Plugin,
     PluginConfig,
@@ -26,10 +26,10 @@ from mcpgateway.plugins.framework import (
     PromptHookType,
     PromptPrehookPayload,
 )
-from mcpgateway.plugins.framework.base import HookRef
-from mcpgateway.plugins.framework.manager import PluginExecutor
-from mcpgateway.plugins.framework.observability import current_trace_id, NullObservability
-from mcpgateway.plugins.framework.registry import PluginRef
+from cpex.framework.base import HookRef
+from cpex.framework.manager import PluginExecutor
+from cpex.framework.observability import current_trace_id, NullObservability
+from cpex.framework.registry import PluginRef
 
 
 class RecordingObservability:
@@ -88,7 +88,7 @@ async def test_observability_injection_via_plugin_manager():
     trace_id = "test-trace-001"
 
     manager = PluginManager(
-        "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml",
+        "./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml",
         observability=recorder,
     )
     await manager.initialize()
@@ -152,7 +152,7 @@ async def test_no_tracing_without_trace_id():
     recorder = RecordingObservability()
 
     manager = PluginManager(
-        "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml",
+        "./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml",
         observability=recorder,
     )
     await manager.initialize()
@@ -195,7 +195,7 @@ async def test_no_tracing_without_trace_id():
 async def test_no_tracing_without_provider():
     """Test that plugin execution works when no observability provider is injected."""
     manager = PluginManager(
-        "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml",
+        "./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml",
         observability=None,
     )
     await manager.initialize()
@@ -266,7 +266,7 @@ async def test_executor_observability_injection():
 def test_protocol_method_bodies():
     """Verify that calling Protocol method stubs directly returns None."""
     # First-Party
-    from mcpgateway.plugins.framework.observability import ObservabilityProvider
+    from cpex.framework.observability import ObservabilityProvider
 
     # Call the unbound protocol methods directly to exercise the `...` bodies
     result1 = ObservabilityProvider.start_span(None, trace_id="t", name="n")
@@ -279,7 +279,7 @@ def test_protocol_method_bodies():
 def test_get_plugin_manager_creates_manager_when_enabled():
     """Test that get_plugin_manager creates a PluginManager when plugins_enabled is True."""
     # First-Party
-    import mcpgateway.plugins.framework as fw
+    import cpex.framework as fw
 
     recorder = RecordingObservability()
 
@@ -287,9 +287,9 @@ def test_get_plugin_manager_creates_manager_when_enabled():
     original = fw._plugin_manager
     fw._plugin_manager = None
     try:
-        with patch("mcpgateway.plugins.framework.settings.settings") as mock_settings:
+        with patch("cpex.framework.settings.settings") as mock_settings:
             mock_settings.enabled = True
-            mock_settings.config_file = "./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml"
+            mock_settings.config_file = "./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml"
             pm = fw.get_plugin_manager(observability=recorder)
 
         assert pm is not None

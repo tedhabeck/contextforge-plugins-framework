@@ -98,13 +98,13 @@ Tests for the gRPC server runtime entry point and configuration.
 
 ```bash
 # Run all gRPC tests
-pytest tests/unit/mcpgateway/plugins/framework/external/grpc/ -v
+pytest tests/unit/cpex/framework/external/grpc/ -v
 
 # Run only unit tests (fast, no subprocess)
-pytest tests/unit/mcpgateway/plugins/framework/external/grpc/test_client.py -v
+pytest tests/unit/cpex/framework/external/grpc/test_client.py -v
 
 # Run only integration tests (spawns real server)
-pytest tests/unit/mcpgateway/plugins/framework/external/grpc/test_client_integration.py -v
+pytest tests/unit/cpex/framework/external/grpc/test_client_integration.py -v
 ```
 
 ## Test Fixtures

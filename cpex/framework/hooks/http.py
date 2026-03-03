@@ -211,8 +211,12 @@ def _register_http_auth_hooks() -> None:
     if not registry.is_registered(HttpHookType.HTTP_PRE_REQUEST):
         registry.register_hook(HttpHookType.HTTP_PRE_REQUEST, HttpPreRequestPayload, HttpPreRequestResult)
         registry.register_hook(HttpHookType.HTTP_POST_REQUEST, HttpPostRequestPayload, HttpPostRequestResult)
-        registry.register_hook(HttpHookType.HTTP_AUTH_RESOLVE_USER, HttpAuthResolveUserPayload, HttpAuthResolveUserResult)
-        registry.register_hook(HttpHookType.HTTP_AUTH_CHECK_PERMISSION, HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResult)
+        registry.register_hook(
+            HttpHookType.HTTP_AUTH_RESOLVE_USER, HttpAuthResolveUserPayload, HttpAuthResolveUserResult
+        )
+        registry.register_hook(
+            HttpHookType.HTTP_AUTH_CHECK_PERMISSION, HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResult
+        )
 
 
 _register_http_auth_hooks()

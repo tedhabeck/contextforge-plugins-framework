@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_utils.py
+"""Location: ./tests/unit/cpex/framework/test_utils.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -8,10 +8,9 @@ Unit tests for utilities.
 """
 
 # Standard
-import sys
 
 # First-Party
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     PluginCondition,
     PromptPrehookPayload,
@@ -19,7 +18,7 @@ from mcpgateway.plugins.framework import (
     ToolPreInvokePayload,
     ToolPostInvokePayload,
 )
-from mcpgateway.plugins.framework.utils import import_module, matches, parse_class_name, payload_matches
+from cpex.framework.utils import import_module, matches, parse_class_name, payload_matches
 
 
 def test_server_ids():
@@ -79,7 +78,7 @@ def test_import_module():
     assert imported_json is json
 
     # Test importing a plugin-namespace module
-    mod = import_module("mcpgateway.plugins.framework.utils")
+    mod = import_module("cpex.framework.utils")
     assert hasattr(mod, "import_module")
 
     # Test caching - calling again should return same object
@@ -315,7 +314,7 @@ def test_payload_matches_prompt_pre_fetch_multiple_conditions():
 
 def test_structured_data_attribute_access():
     """Test StructuredData provides attribute access on extra fields."""
-    from mcpgateway.plugins.framework.utils import StructuredData
+    from cpex.framework.utils import StructuredData
 
     sd = StructuredData(name="test", value=42)
     assert sd.name == "test"
@@ -324,7 +323,7 @@ def test_structured_data_attribute_access():
 
 def test_structured_data_model_dump():
     """Test StructuredData round-trips through model_dump."""
-    from mcpgateway.plugins.framework.utils import StructuredData
+    from cpex.framework.utils import StructuredData
 
     sd = StructuredData(role="user", content="hello")
     dumped = sd.model_dump()
@@ -333,7 +332,7 @@ def test_structured_data_model_dump():
 
 def test_coerce_nested_dict():
     """Test coerce_nested converts a dict to StructuredData."""
-    from mcpgateway.plugins.framework.utils import StructuredData, coerce_nested
+    from cpex.framework.utils import StructuredData, coerce_nested
 
     result = coerce_nested({"name": "test"})
     assert isinstance(result, StructuredData)
@@ -342,7 +341,7 @@ def test_coerce_nested_dict():
 
 def test_coerce_nested_deeply_nested():
     """Test coerce_nested handles deeply nested dicts."""
-    from mcpgateway.plugins.framework.utils import coerce_nested
+    from cpex.framework.utils import coerce_nested
 
     data = {
         "messages": [
@@ -356,7 +355,7 @@ def test_coerce_nested_deeply_nested():
 
 def test_coerce_nested_list():
     """Test coerce_nested handles lists."""
-    from mcpgateway.plugins.framework.utils import StructuredData, coerce_nested
+    from cpex.framework.utils import StructuredData, coerce_nested
 
     result = coerce_nested([{"a": 1}, {"b": 2}])
     assert isinstance(result, list)
@@ -367,7 +366,7 @@ def test_coerce_nested_list():
 
 def test_coerce_nested_scalar():
     """Test coerce_nested passes through scalars unchanged."""
-    from mcpgateway.plugins.framework.utils import coerce_nested
+    from cpex.framework.utils import coerce_nested
 
     assert coerce_nested(42) == 42
     assert coerce_nested("hello") == "hello"
@@ -378,7 +377,7 @@ def test_coerce_nested_pydantic_model():
     """Test coerce_nested returns Pydantic models as-is."""
     from pydantic import BaseModel
 
-    from mcpgateway.plugins.framework.utils import coerce_nested
+    from cpex.framework.utils import coerce_nested
 
     class MyModel(BaseModel):
         x: int = 1
@@ -394,14 +393,14 @@ def test_coerce_nested_pydantic_model():
 
 def test_orjson_response_media_type():
     """Test ORJSONResponse has correct media type."""
-    from mcpgateway.plugins.framework.utils import ORJSONResponse
+    from cpex.framework.utils import ORJSONResponse
 
     assert ORJSONResponse.media_type == "application/json"
 
 
 def test_orjson_response_render():
     """Test ORJSONResponse renders JSON bytes."""
-    from mcpgateway.plugins.framework.utils import ORJSONResponse
+    from cpex.framework.utils import ORJSONResponse
 
     response = ORJSONResponse(content={"status": "ok", "count": 42})
     assert response.body is not None
@@ -413,7 +412,7 @@ def test_orjson_response_render():
 
 def test_coerce_nested_depth_limit():
     """Test coerce_nested stops recursing at _COERCE_MAX_DEPTH."""
-    from mcpgateway.plugins.framework.utils import StructuredData, _COERCE_MAX_DEPTH, coerce_nested
+    from cpex.framework.utils import StructuredData, _COERCE_MAX_DEPTH, coerce_nested
 
     # Build a dict nested deeper than the limit
     deeply = {"leaf": True}
@@ -433,7 +432,7 @@ def test_coerce_nested_depth_limit():
 
 def test_coerce_nested_dict_breadth_limit():
     """Dict exceeding _COERCE_MAX_BREADTH is returned as plain dict."""
-    from mcpgateway.plugins.framework.utils import _COERCE_MAX_BREADTH, coerce_nested
+    from cpex.framework.utils import _COERCE_MAX_BREADTH, coerce_nested
 
     big_dict = {f"key_{i}": i for i in range(_COERCE_MAX_BREADTH + 1)}
     result = coerce_nested(big_dict)
@@ -443,7 +442,7 @@ def test_coerce_nested_dict_breadth_limit():
 
 def test_coerce_nested_list_breadth_limit():
     """List exceeding _COERCE_MAX_BREADTH is returned as plain list."""
-    from mcpgateway.plugins.framework.utils import _COERCE_MAX_BREADTH, coerce_nested
+    from cpex.framework.utils import _COERCE_MAX_BREADTH, coerce_nested
 
     big_list = [{"v": i} for i in range(_COERCE_MAX_BREADTH + 1)]
     result = coerce_nested(big_list)
@@ -454,7 +453,7 @@ def test_coerce_nested_list_breadth_limit():
 
 def test_coerce_messages_converts_dicts():
     """Test coerce_messages converts list of dicts to StructuredData."""
-    from mcpgateway.plugins.framework.utils import StructuredData, coerce_messages
+    from cpex.framework.utils import StructuredData, coerce_messages
 
     msgs = [{"role": "user", "content": {"type": "text", "text": "hi"}}]
     result = coerce_messages(msgs)
@@ -466,7 +465,7 @@ def test_coerce_messages_converts_dicts():
 
 def test_coerce_messages_passes_non_list():
     """Test coerce_messages returns non-list values unchanged."""
-    from mcpgateway.plugins.framework.utils import coerce_messages
+    from cpex.framework.utils import coerce_messages
 
     assert coerce_messages("hello") == "hello"
     assert coerce_messages(42) == 42
@@ -475,7 +474,7 @@ def test_coerce_messages_passes_non_list():
 
 def test_coerce_messages_preserves_non_dict_items():
     """Test coerce_messages skips non-dict items in the list."""
-    from mcpgateway.plugins.framework.utils import StructuredData, coerce_messages
+    from cpex.framework.utils import StructuredData, coerce_messages
 
     msgs = [{"role": "user"}, "plain_string", 42]
     result = coerce_messages(msgs)
@@ -486,7 +485,7 @@ def test_coerce_messages_preserves_non_dict_items():
 
 def test_orjson_response_render_non_str_keys():
     """Test ORJSONResponse handles non-string keys."""
-    from mcpgateway.plugins.framework.utils import ORJSONResponse
+    from cpex.framework.utils import ORJSONResponse
 
     response = ORJSONResponse(content={1: "one", 2: "two"})
     import orjson

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/test_grpc_models.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/test_grpc_models.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.models import (
+from cpex.framework.models import (
     GRPCClientConfig,
     GRPCClientTLSConfig,
     GRPCServerConfig,

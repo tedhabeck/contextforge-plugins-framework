@@ -57,7 +57,7 @@ class PluginLoader:
             A plugin type.
         """
         try:
-            (mod_name, cls_name) = parse_class_name(kind)
+            mod_name, cls_name = parse_class_name(kind)
             module = import_module(mod_name)
             class_ = getattr(module, cls_name)
             return cast(Type[Plugin], class_)
@@ -104,14 +104,18 @@ class PluginLoader:
                 # Use gRPC transport
                 # Import here to avoid circular dependency and to make grpc optional
                 # First-Party
-                from cpex.framework.external.grpc.client import GrpcExternalPlugin  # pylint: disable=import-outside-toplevel
+                from cpex.framework.external.grpc.client import (
+                    GrpcExternalPlugin,
+                )  # pylint: disable=import-outside-toplevel
 
                 plugin = GrpcExternalPlugin(config)
                 logger.info("Loading external plugin '%s' with gRPC transport", config.name)
             elif config.unix_socket:
                 # Use raw Unix socket transport (high-performance local IPC)
                 # First-Party
-                from cpex.framework.external.unix.client import UnixSocketExternalPlugin  # pylint: disable=import-outside-toplevel
+                from cpex.framework.external.unix.client import (
+                    UnixSocketExternalPlugin,
+                )  # pylint: disable=import-outside-toplevel
 
                 plugin = UnixSocketExternalPlugin(config)
                 logger.info("Loading external plugin '%s' with Unix socket transport", config.name)
@@ -121,7 +125,9 @@ class PluginLoader:
                 logger.info("Loading external plugin '%s' with MCP transport", config.name)
             else:
                 # Defensive fallback: PluginConfig validation should prevent this path.
-                raise ValueError(f"External plugin '{config.name}' must have 'mcp', 'grpc', or 'unix_socket' configuration")  # pragma: no cover
+                raise ValueError(
+                    f"External plugin '{config.name}' must have 'mcp', 'grpc', or 'unix_socket' configuration"
+                )  # pragma: no cover
 
             await plugin.initialize()
             return plugin

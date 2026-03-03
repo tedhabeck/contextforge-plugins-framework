@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_policies.py
+"""Location: ./tests/unit/cpex/framework/test_policies.py
 Copyright 2026
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
@@ -9,14 +9,15 @@ Tests for hook payload policies.
 
 # Standard
 from unittest.mock import patch
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 # First-Party
-from mcpgateway.plugins.framework.hooks.policies import apply_policy, DefaultHookPolicy, HookPayloadPolicy
-from mcpgateway.plugins.framework.models import PluginPayload
+from cpex.framework.hooks.policies import apply_policy, DefaultHookPolicy, HookPayloadPolicy
+from cpex.framework.models import PluginPayload
 
 
 class SamplePayload(PluginPayload):
@@ -191,7 +192,7 @@ class TestConcreteGatewayPolicies:
     """Tests for the gateway-side HOOK_PAYLOAD_POLICIES."""
 
     def test_all_hook_types_have_policies(self):
-        from mcpgateway.plugins.policy import HOOK_PAYLOAD_POLICIES
+        from cpex.policy import HOOK_PAYLOAD_POLICIES
 
         expected_hooks = {
             "tool_pre_invoke",
@@ -210,7 +211,7 @@ class TestConcreteGatewayPolicies:
         assert set(HOOK_PAYLOAD_POLICIES.keys()) == expected_hooks
 
     def test_tool_pre_invoke_writable_fields(self):
-        from mcpgateway.plugins.policy import HOOK_PAYLOAD_POLICIES
+        from cpex.policy import HOOK_PAYLOAD_POLICIES
 
         policy = HOOK_PAYLOAD_POLICIES["tool_pre_invoke"]
         assert "name" in policy.writable_fields
@@ -218,13 +219,13 @@ class TestConcreteGatewayPolicies:
         assert "headers" in policy.writable_fields
 
     def test_tool_post_invoke_writable_fields(self):
-        from mcpgateway.plugins.policy import HOOK_PAYLOAD_POLICIES
+        from cpex.policy import HOOK_PAYLOAD_POLICIES
 
         policy = HOOK_PAYLOAD_POLICIES["tool_post_invoke"]
         assert policy.writable_fields == frozenset({"result"})
 
     def test_agent_pre_invoke_includes_agent_id(self):
-        from mcpgateway.plugins.policy import HOOK_PAYLOAD_POLICIES
+        from cpex.policy import HOOK_PAYLOAD_POLICIES
 
         policy = HOOK_PAYLOAD_POLICIES["agent_pre_invoke"]
         assert "agent_id" in policy.writable_fields, "agent_id must be writable for agent-routing plugins"
@@ -234,8 +235,8 @@ class TestAgentMessageCoercion:
     """Tests for _coerce_messages field validator on agent payloads."""
 
     def test_pre_invoke_dict_messages_coerced(self):
-        from mcpgateway.plugins.framework.hooks.agents import AgentPreInvokePayload
-        from mcpgateway.plugins.framework.utils import StructuredData
+        from cpex.framework.hooks.agents import AgentPreInvokePayload
+        from cpex.framework.utils import StructuredData
 
         payload = AgentPreInvokePayload(
             agent_id="agent-1",
@@ -246,8 +247,8 @@ class TestAgentMessageCoercion:
         assert payload.messages[0].content.text == "hello"
 
     def test_post_invoke_dict_messages_coerced(self):
-        from mcpgateway.plugins.framework.hooks.agents import AgentPostInvokePayload
-        from mcpgateway.plugins.framework.utils import StructuredData
+        from cpex.framework.hooks.agents import AgentPostInvokePayload
+        from cpex.framework.utils import StructuredData
 
         payload = AgentPostInvokePayload(
             agent_id="agent-1",
@@ -257,15 +258,14 @@ class TestAgentMessageCoercion:
         assert payload.messages[0].content.text == "world"
 
     def test_real_message_objects_pass_through(self):
-        from mcpgateway.common.models import Message, Role, TextContent
-        from mcpgateway.plugins.framework.hooks.agents import AgentPreInvokePayload
+        from cpex.framework.hooks.agents import AgentPreInvokePayload
 
-        msg = Message(role=Role.USER, content=TextContent(type="text", text="hi"))
+        msg = SimpleNamespace(role="user", content=SimpleNamespace(type="text", text="hi"))
         payload = AgentPreInvokePayload(agent_id="agent-1", messages=[msg])
         assert payload.messages[0] is msg
 
     def test_empty_messages_list(self):
-        from mcpgateway.plugins.framework.hooks.agents import AgentPreInvokePayload
+        from cpex.framework.hooks.agents import AgentPreInvokePayload
 
         payload = AgentPreInvokePayload(agent_id="agent-1", messages=[])
         assert payload.messages == []
@@ -275,18 +275,16 @@ class TestProtocolConformance:
     """Verify gateway concrete types satisfy framework protocols."""
 
     def test_message_satisfies_message_like(self):
-        from mcpgateway.common.models import Message, Role, TextContent
-        from mcpgateway.plugins.framework.protocols import MessageLike
+        from cpex.framework.protocols import MessageLike
 
-        msg = Message(role=Role.USER, content=TextContent(type="text", text="hello"))
+        msg = SimpleNamespace(role="user", content=SimpleNamespace(type="text", text="hello"))
         assert isinstance(msg, MessageLike)
 
     def test_prompt_result_satisfies_prompt_result_like(self):
-        from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-        from mcpgateway.plugins.framework.protocols import PromptResultLike
+        from cpex.framework.protocols import PromptResultLike
 
-        result = PromptResult(
-            messages=[Message(role=Role.USER, content=TextContent(type="text", text="hi"))],
+        result = SimpleNamespace(
+            messages=[SimpleNamespace(role="user", content=SimpleNamespace(type="text", text="hi"))],
             description="test",
         )
         assert isinstance(result, PromptResultLike)
@@ -294,7 +292,7 @@ class TestProtocolConformance:
     def test_simple_namespace_satisfies_message_like(self):
         from types import SimpleNamespace
 
-        from mcpgateway.plugins.framework.protocols import MessageLike
+        from cpex.framework.protocols import MessageLike
 
         msg = SimpleNamespace(role="user", content="hello")
         assert isinstance(msg, MessageLike)
@@ -304,8 +302,8 @@ class TestPromptPosthookCoercion:
     """Tests for PromptPosthookPayload._coerce_result field validator."""
 
     def test_dict_result_coerced_to_structured_data(self):
-        from mcpgateway.plugins.framework.hooks.prompts import PromptPosthookPayload
-        from mcpgateway.plugins.framework.utils import StructuredData
+        from cpex.framework.hooks.prompts import PromptPosthookPayload
+        from cpex.framework.utils import StructuredData
 
         payload = PromptPosthookPayload(
             prompt_id="test",
@@ -317,14 +315,14 @@ class TestPromptPosthookCoercion:
     def test_non_dict_result_passthrough(self):
         from types import SimpleNamespace
 
-        from mcpgateway.plugins.framework.hooks.prompts import PromptPosthookPayload
+        from cpex.framework.hooks.prompts import PromptPosthookPayload
 
         ns = SimpleNamespace(messages=[], description=None)
         payload = PromptPosthookPayload(prompt_id="test", result=ns)
         assert payload.result is ns
 
     def test_pydantic_model_result_passthrough(self):
-        from mcpgateway.plugins.framework.hooks.prompts import PromptPosthookPayload
+        from cpex.framework.hooks.prompts import PromptPosthookPayload
 
         class FakeResult(BaseModel):
             messages: list = []
@@ -340,9 +338,9 @@ class TestExecutorPolicyEnforcement:
 
     @pytest.mark.asyncio
     async def test_explicit_policy_filters_writable_fields(self):
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class ModifyingPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -372,9 +370,9 @@ class TestExecutorPolicyEnforcement:
 
     @pytest.mark.asyncio
     async def test_default_deny_rejects_modifications(self):
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class ModifyingPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -387,7 +385,7 @@ class TestExecutorPolicyEnforcement:
         hook_ref = HookRef("test_hook", ref)
 
         # No policies passed — default deny should reject all
-        with patch("mcpgateway.plugins.framework.manager.settings") as mock_settings:
+        with patch("cpex.framework.manager.settings") as mock_settings:
             mock_settings.default_hook_policy = "deny"
             executor = PluginExecutor(hook_policies={})
 
@@ -405,9 +403,9 @@ class TestExecutorPolicyEnforcement:
 
     @pytest.mark.asyncio
     async def test_explicit_policy_no_effective_change(self):
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class ModifyingPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -438,9 +436,9 @@ class TestExecutorPolicyEnforcement:
     @pytest.mark.asyncio
     async def test_in_place_nested_mutation_caught_by_policy(self):
         """Plugins that mutate nested dicts in place should not bypass policy filtering."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class InPlaceMutatingPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -451,7 +449,9 @@ class TestExecutorPolicyEnforcement:
                 # and return the mutated payload as modified_payload.
                 return PluginResult(
                     continue_processing=True,
-                    modified_payload=payload.model_copy(update={"secret": "hacked", "args": {**payload.args, "injected": "evil"}}),
+                    modified_payload=payload.model_copy(
+                        update={"secret": "hacked", "args": {**payload.args, "injected": "evil"}}
+                    ),
                 )
 
         config = PluginConfig(name="mutator", kind="test.Plugin", version="1.0", hooks=["test_hook"])
@@ -483,9 +483,9 @@ class TestExecutorPolicyEnforcement:
         """When an ENFORCE plugin short-circuits after a prior plugin made
         policy-approved modifications, the early return must carry those
         filtered modifications via current_payload — not the raw result."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
 
         class ModifyingPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -501,7 +501,9 @@ class TestExecutorPolicyEnforcement:
         modify_ref = PluginRef(modify_plugin)
         modify_hook = HookRef("test_hook", modify_ref)
 
-        block_config = PluginConfig(name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE)
+        block_config = PluginConfig(
+            name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE
+        )
         block_plugin = BlockingPlugin(block_config)
         block_ref = PluginRef(block_plugin)
         block_hook = HookRef("test_hook", block_ref)
@@ -530,9 +532,9 @@ class TestExecutorPolicyEnforcement:
     async def test_enforce_early_return_carries_metadata(self):
         """The early-return path must carry accumulated metadata from earlier
         plugins, consistent with the normal return path."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
 
         class MetadataPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -547,7 +549,9 @@ class TestExecutorPolicyEnforcement:
         meta_ref = PluginRef(meta_plugin)
         meta_hook = HookRef("test_hook", meta_ref)
 
-        block_config = PluginConfig(name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE)
+        block_config = PluginConfig(
+            name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE
+        )
         block_plugin = BlockingPlugin(block_config)
         block_ref = PluginRef(block_plugin)
         block_hook = HookRef("test_hook", block_ref)
@@ -571,22 +575,24 @@ class TestExecutorPolicyEnforcement:
     async def test_enforce_early_return_deny_default_rejects_all(self):
         """When default=deny and an ENFORCE plugin short-circuits with modifications,
         all modifications must be rejected (modified_payload=None)."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
 
         class BlockingPlugin(Plugin):
             async def test_hook(self, payload, context):
                 modified = payload.model_copy(update={"name": "new"})
                 return PluginResult(continue_processing=False, modified_payload=modified)
 
-        config = PluginConfig(name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE)
+        config = PluginConfig(
+            name="blocker", kind="test.Plugin", version="1.0", hooks=["test_hook"], mode=PluginMode.ENFORCE
+        )
         plugin = BlockingPlugin(config)
         ref = PluginRef(plugin)
         hook_ref = HookRef("test_hook", ref)
 
         # No policies, default deny
-        with patch("mcpgateway.plugins.framework.manager.settings") as mock_settings:
+        with patch("cpex.framework.manager.settings") as mock_settings:
             mock_settings.default_hook_policy = "deny"
             executor = PluginExecutor(hook_policies={})
 
@@ -610,9 +616,9 @@ class TestCrossTypePolicyHandling:
     async def test_cross_type_result_accepted_when_policy_exists(self):
         """When modified_payload is a different PluginPayload subtype from the
         input, the policy's presence authorises the hook and the result is accepted."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginPayload, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginPayload, PluginResult
 
         class DifferentResult(PluginPayload):
             granted: bool = True
@@ -640,9 +646,9 @@ class TestCrossTypePolicyHandling:
     @pytest.mark.asyncio
     async def test_cross_type_dict_result_accepted_when_policy_exists(self):
         """dict results (e.g. http_auth_resolve_user) are accepted when a policy exists."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class DictResultPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -665,9 +671,9 @@ class TestCrossTypePolicyHandling:
     @pytest.mark.asyncio
     async def test_deny_default_snapshots_payload_for_in_place_isolation(self):
         """When default=deny, in-place nested mutations must not persist on the live payload."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class InPlaceMutator(Plugin):
             async def no_policy_hook(self, payload, context):
@@ -680,7 +686,7 @@ class TestCrossTypePolicyHandling:
         hook_ref = HookRef("no_policy_hook", ref)
 
         # No policy for this hook, default=deny
-        with patch("mcpgateway.plugins.framework.manager.settings") as mock_settings:
+        with patch("cpex.framework.manager.settings") as mock_settings:
             mock_settings.default_hook_policy = "deny"
             executor = PluginExecutor(hook_policies={})
 
@@ -699,8 +705,8 @@ class TestBorgPolicyBackfill:
 
     def test_get_plugin_manager_injects_policies(self, monkeypatch, tmp_path):
         """Verify get_plugin_manager() always injects hook policies."""
-        import mcpgateway.plugins.framework as fw
-        from mcpgateway.plugins.framework.settings import settings as plugin_settings
+        import cpex.framework as fw
+        from cpex.framework.settings import settings as plugin_settings
 
         config_file = tmp_path / "plugins.yaml"
         config_file.write_text("plugin_settings:\n  plugin_timeout: 30\nplugin_dirs: []\nplugins: []\n")
@@ -723,8 +729,8 @@ class TestBorgPolicyBackfill:
 
     def test_service_via_get_plugin_manager_has_policies(self, monkeypatch, tmp_path):
         """Verify that services using get_plugin_manager() get policies regardless of creation order."""
-        import mcpgateway.plugins.framework as fw
-        from mcpgateway.plugins.framework.settings import settings as plugin_settings
+        import cpex.framework as fw
+        from cpex.framework.settings import settings as plugin_settings
 
         config_file = tmp_path / "plugins.yaml"
         config_file.write_text("plugin_settings:\n  plugin_timeout: 30\nplugin_dirs: []\nplugins: []\n")
@@ -750,14 +756,16 @@ class TestBorgPolicyBackfill:
     @pytest.mark.asyncio
     async def test_policy_enforcement_through_manager(self, monkeypatch, tmp_path):
         """Integration test: policies enforced through PluginManager.execute flow."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class InjectPlugin(Plugin):
             async def tool_pre_invoke(self, payload, context):
-                modified = payload.model_copy(update={"name": "injected", "args": {"injected": "true"}, "secret": "hacked"})
+                modified = payload.model_copy(
+                    update={"name": "injected", "args": {"injected": "true"}, "secret": "hacked"}
+                )
                 return PluginResult(continue_processing=True, modified_payload=modified)
 
         # Set up executor with tool_pre_invoke policy
@@ -787,35 +795,6 @@ class TestBorgPolicyBackfill:
         assert result.modified_payload.secret == "safe"  # Policy filtered this out
 
 
-class TestFrameworkImportIsolation:
-    """Verify the plugin framework has no remaining imports from mcpgateway.common or mcpgateway.utils."""
-
-    def test_no_common_or_utils_imports_in_framework(self):
-        import ast
-        from pathlib import Path
-
-        # Walk up to repo root (where pyproject.toml lives) instead of hardcoding parent depth.
-        _here = Path(__file__).resolve().parent
-        repo_root = _here
-        while not (repo_root / "pyproject.toml").exists() and repo_root != repo_root.parent:
-            repo_root = repo_root.parent
-        framework_dir = repo_root / "mcpgateway" / "plugins" / "framework"
-        violations = []
-
-        for py_file in framework_dir.rglob("*.py"):
-            source = py_file.read_text()
-            try:
-                tree = ast.parse(source)
-            except SyntaxError:
-                continue
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    if node.module.startswith(("mcpgateway.common", "mcpgateway.utils")):
-                        violations.append(f"{py_file.relative_to(framework_dir)}:{node.lineno} -> {node.module}")
-
-        assert violations == [], "Framework still imports from gateway internals:\n" + "\n".join(violations)
-
-
 class TestMultiPluginDictChain:
     """Tests for multi-plugin chains where an earlier plugin returns a dict payload."""
 
@@ -823,13 +802,15 @@ class TestMultiPluginDictChain:
     async def test_dict_payload_deep_copied_for_next_plugin(self):
         """When plugin 1 returns a dict, the next plugin receives a deep-copied
         dict without crashing on model_copy (which dicts don't have)."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class AuthPlugin(Plugin):
             async def auth_hook(self, payload, context):
-                return PluginResult(continue_processing=True, modified_payload={"email": "user@test.com", "role": "admin"})
+                return PluginResult(
+                    continue_processing=True, modified_payload={"email": "user@test.com", "role": "admin"}
+                )
 
         class AuditPlugin(Plugin):
             async def auth_hook(self, payload, context):
@@ -861,9 +842,9 @@ class TestMultiPluginDictChain:
     async def test_dict_to_dict_accepted_without_apply_policy(self):
         """When effective_payload is a dict and plugin also returns a dict,
         the result is accepted directly (not routed through apply_policy)."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class FirstAuth(Plugin):
             async def auth_hook(self, payload, context):
@@ -871,7 +852,9 @@ class TestMultiPluginDictChain:
 
         class SecondAuth(Plugin):
             async def auth_hook(self, payload, context):
-                return PluginResult(continue_processing=True, modified_payload={"email": "second@test.com", "enriched": True})
+                return PluginResult(
+                    continue_processing=True, modified_payload={"email": "second@test.com", "enriched": True}
+                )
 
         first_config = PluginConfig(name="first", kind="test.Plugin", version="1.0", hooks=["auth_hook"])
         second_config = PluginConfig(name="second", kind="test.Plugin", version="1.0", hooks=["auth_hook"])
@@ -895,9 +878,9 @@ class TestMultiPluginDictChain:
     async def test_empty_dict_payload_not_dropped_by_truthiness(self):
         """An empty dict returned by a plugin must not be replaced by the
         original payload due to falsy truthiness evaluation."""
-        from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-        from mcpgateway.plugins.framework.manager import PluginExecutor
-        from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+        from cpex.framework.base import HookRef, Plugin, PluginRef
+        from cpex.framework.manager import PluginExecutor
+        from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
         class EmptyDictPlugin(Plugin):
             async def auth_hook(self, payload, context):
@@ -910,8 +893,18 @@ class TestMultiPluginDictChain:
                 return PluginResult(continue_processing=True)
 
         hook_refs = [
-            HookRef("auth_hook", PluginRef(EmptyDictPlugin(PluginConfig(name="empty", kind="test.Plugin", version="1.0", hooks=["auth_hook"])))),
-            HookRef("auth_hook", PluginRef(PassthroughPlugin(PluginConfig(name="pass", kind="test.Plugin", version="1.0", hooks=["auth_hook"])))),
+            HookRef(
+                "auth_hook",
+                PluginRef(
+                    EmptyDictPlugin(PluginConfig(name="empty", kind="test.Plugin", version="1.0", hooks=["auth_hook"]))
+                ),
+            ),
+            HookRef(
+                "auth_hook",
+                PluginRef(
+                    PassthroughPlugin(PluginConfig(name="pass", kind="test.Plugin", version="1.0", hooks=["auth_hook"]))
+                ),
+            ),
         ]
 
         policies = {"auth_hook": HookPayloadPolicy(writable_fields=frozenset())}
@@ -927,21 +920,33 @@ class TestMultiPluginDictChain:
 @pytest.mark.asyncio
 async def test_http_auth_permission_result_includes_decision_plugin_provenance():
     """Permission hook decisions should carry deciding plugin identity even with empty plugin metadata."""
-    from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-    from mcpgateway.plugins.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
-    from mcpgateway.plugins.framework.manager import PluginExecutor
-    from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+    from cpex.framework.base import HookRef, Plugin, PluginRef
+    from cpex.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
+    from cpex.framework.manager import PluginExecutor
+    from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
     class DecisionPlugin(Plugin):
         async def http_auth_check_permission(self, payload, context):
-            return PluginResult(continue_processing=True, modified_payload=HttpAuthCheckPermissionResultPayload(granted=False, reason="Denied by policy"), metadata={})
+            return PluginResult(
+                continue_processing=True,
+                modified_payload=HttpAuthCheckPermissionResultPayload(granted=False, reason="Denied by policy"),
+                metadata={},
+            )
 
-    config = PluginConfig(name="decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"])
+    config = PluginConfig(
+        name="decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]
+    )
     hook_ref = HookRef("http_auth_check_permission", PluginRef(DecisionPlugin(config)))
 
-    executor = PluginExecutor(hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))})
-    payload = HttpAuthCheckPermissionPayload(user_email="user@example.com", permission="tools.read", resource_type="tool")
-    result, _ = await executor.execute([hook_ref], payload, GlobalContext(request_id="decision-1"), hook_type="http_auth_check_permission")
+    executor = PluginExecutor(
+        hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))}
+    )
+    payload = HttpAuthCheckPermissionPayload(
+        user_email="user@example.com", permission="tools.read", resource_type="tool"
+    )
+    result, _ = await executor.execute(
+        [hook_ref], payload, GlobalContext(request_id="decision-1"), hook_type="http_auth_check_permission"
+    )
 
     assert result.modified_payload is not None
     assert result.modified_payload.granted is False
@@ -951,10 +956,10 @@ async def test_http_auth_permission_result_includes_decision_plugin_provenance()
 @pytest.mark.asyncio
 async def test_http_auth_permission_provenance_overrides_forged_metadata_from_decider():
     """Manager-owned provenance must overwrite forged plugin metadata keys."""
-    from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-    from mcpgateway.plugins.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
-    from mcpgateway.plugins.framework.manager import PluginExecutor
-    from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+    from cpex.framework.base import HookRef, Plugin, PluginRef
+    from cpex.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
+    from cpex.framework.manager import PluginExecutor
+    from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
     class ForgingDecisionPlugin(Plugin):
         async def http_auth_check_permission(self, payload, context):
@@ -964,12 +969,20 @@ async def test_http_auth_permission_provenance_overrides_forged_metadata_from_de
                 metadata={"_decision_plugin": "spoofed-name", "note": "kept"},
             )
 
-    config = PluginConfig(name="real-decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"])
+    config = PluginConfig(
+        name="real-decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]
+    )
     hook_ref = HookRef("http_auth_check_permission", PluginRef(ForgingDecisionPlugin(config)))
-    executor = PluginExecutor(hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))})
-    payload = HttpAuthCheckPermissionPayload(user_email="user@example.com", permission="tools.read", resource_type="tool")
+    executor = PluginExecutor(
+        hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))}
+    )
+    payload = HttpAuthCheckPermissionPayload(
+        user_email="user@example.com", permission="tools.read", resource_type="tool"
+    )
 
-    result, _ = await executor.execute([hook_ref], payload, GlobalContext(request_id="decision-forge-1"), hook_type="http_auth_check_permission")
+    result, _ = await executor.execute(
+        [hook_ref], payload, GlobalContext(request_id="decision-forge-1"), hook_type="http_auth_check_permission"
+    )
 
     assert result.metadata["_decision_plugin"] == "real-decision-plugin"
     assert result.metadata["note"] == "kept"
@@ -978,14 +991,16 @@ async def test_http_auth_permission_provenance_overrides_forged_metadata_from_de
 @pytest.mark.asyncio
 async def test_http_auth_permission_provenance_uses_actual_decider_in_multi_plugin_chain():
     """Metadata-only plugins must not control provenance when a later plugin decides."""
-    from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-    from mcpgateway.plugins.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
-    from mcpgateway.plugins.framework.manager import PluginExecutor
-    from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginResult
+    from cpex.framework.base import HookRef, Plugin, PluginRef
+    from cpex.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
+    from cpex.framework.manager import PluginExecutor
+    from cpex.framework.models import GlobalContext, PluginConfig, PluginResult
 
     class MetadataOnlyPlugin(Plugin):
         async def http_auth_check_permission(self, payload, context):
-            return PluginResult(continue_processing=True, metadata={"_decision_plugin": "metadata-only-plugin", "source": "plugin-a"})
+            return PluginResult(
+                continue_processing=True, metadata={"_decision_plugin": "metadata-only-plugin", "source": "plugin-a"}
+            )
 
     class DecisionPluginB(Plugin):
         async def http_auth_check_permission(self, payload, context):
@@ -998,17 +1013,35 @@ async def test_http_auth_permission_provenance_uses_actual_decider_in_multi_plug
     hook_refs = [
         HookRef(
             "http_auth_check_permission",
-            PluginRef(MetadataOnlyPlugin(PluginConfig(name="metadata-a", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]))),
+            PluginRef(
+                MetadataOnlyPlugin(
+                    PluginConfig(
+                        name="metadata-a", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]
+                    )
+                )
+            ),
         ),
         HookRef(
             "http_auth_check_permission",
-            PluginRef(DecisionPluginB(PluginConfig(name="decision-b", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]))),
+            PluginRef(
+                DecisionPluginB(
+                    PluginConfig(
+                        name="decision-b", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]
+                    )
+                )
+            ),
         ),
     ]
-    executor = PluginExecutor(hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))})
-    payload = HttpAuthCheckPermissionPayload(user_email="user@example.com", permission="tools.read", resource_type="tool")
+    executor = PluginExecutor(
+        hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))}
+    )
+    payload = HttpAuthCheckPermissionPayload(
+        user_email="user@example.com", permission="tools.read", resource_type="tool"
+    )
 
-    result, _ = await executor.execute(hook_refs, payload, GlobalContext(request_id="decision-forge-2"), hook_type="http_auth_check_permission")
+    result, _ = await executor.execute(
+        hook_refs, payload, GlobalContext(request_id="decision-forge-2"), hook_type="http_auth_check_permission"
+    )
 
     assert result.modified_payload is not None
     assert result.modified_payload.granted is True
@@ -1019,10 +1052,10 @@ async def test_http_auth_permission_provenance_uses_actual_decider_in_multi_plug
 @pytest.mark.asyncio
 async def test_http_auth_permission_enforce_short_circuit_records_decision_plugin():
     """ENFORCE short-circuit path should still persist authoritative decision provenance."""
-    from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-    from mcpgateway.plugins.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
-    from mcpgateway.plugins.framework.manager import PluginExecutor
-    from mcpgateway.plugins.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
+    from cpex.framework.base import HookRef, Plugin, PluginRef
+    from cpex.framework.hooks.http import HttpAuthCheckPermissionPayload, HttpAuthCheckPermissionResultPayload
+    from cpex.framework.manager import PluginExecutor
+    from cpex.framework.models import GlobalContext, PluginConfig, PluginMode, PluginResult
 
     class DecisionPlugin(Plugin):
         async def http_auth_check_permission(self, payload, context):
@@ -1036,7 +1069,9 @@ async def test_http_auth_permission_enforce_short_circuit_records_decision_plugi
         async def http_auth_check_permission(self, payload, context):
             return PluginResult(continue_processing=False, metadata={})
 
-    decision_config = PluginConfig(name="decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"])
+    decision_config = PluginConfig(
+        name="decision-plugin", kind="test.Plugin", version="1.0", hooks=["http_auth_check_permission"]
+    )
     block_config = PluginConfig(
         name="enforce-block-plugin",
         kind="test.Plugin",
@@ -1049,10 +1084,16 @@ async def test_http_auth_permission_enforce_short_circuit_records_decision_plugi
         HookRef("http_auth_check_permission", PluginRef(EnforceBlockPlugin(block_config))),
     ]
 
-    executor = PluginExecutor(hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))})
-    payload = HttpAuthCheckPermissionPayload(user_email="user@example.com", permission="tools.execute", resource_type="tool")
+    executor = PluginExecutor(
+        hook_policies={"http_auth_check_permission": HookPayloadPolicy(writable_fields=frozenset({"reason"}))}
+    )
+    payload = HttpAuthCheckPermissionPayload(
+        user_email="user@example.com", permission="tools.execute", resource_type="tool"
+    )
 
-    result, _ = await executor.execute(hook_refs, payload, GlobalContext(request_id="decision-short-circuit"), hook_type="http_auth_check_permission")
+    result, _ = await executor.execute(
+        hook_refs, payload, GlobalContext(request_id="decision-short-circuit"), hook_type="http_auth_check_permission"
+    )
 
     assert result.continue_processing is False
     assert result.metadata["_decision_plugin"] == "decision-plugin"

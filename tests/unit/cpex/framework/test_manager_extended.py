@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_manager_extended.py
+"""Location: ./tests/unit/cpex/framework/test_manager_extended.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
@@ -15,15 +15,15 @@ import sys
 from unittest.mock import patch
 import re
 import uuid
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework.base import HookRef
-from mcpgateway.plugins.framework.models import Config
-from mcpgateway.plugins.framework import (
+from cpex.framework.base import HookRef
+from cpex.framework.models import Config
+from cpex.framework import (
     GlobalContext,
     PluginCondition,
     PluginConfig,
@@ -42,7 +42,7 @@ from mcpgateway.plugins.framework import (
     ToolPostInvokePayload,
     ToolPreInvokePayload,
 )
-from mcpgateway.plugins.framework.registry import PluginRef
+from cpex.framework.registry import PluginRef
 
 
 def test_manager_module_import_does_not_parse_plugin_settings(monkeypatch):
@@ -54,8 +54,8 @@ def test_manager_module_import_does_not_parse_plugin_settings(monkeypatch):
     """
     monkeypatch.setenv("PLUGINS_SERVER_PORT", "abc")
 
-    module_name = f"mcpgateway._plugin_manager_test_{uuid.uuid4().hex}"
-    spec = importlib.util.spec_from_file_location(module_name, Path("mcpgateway/plugins/framework/manager.py"))
+    module_name = f"cpex._plugin_manager_test_{uuid.uuid4().hex}"
+    spec = importlib.util.spec_from_file_location(module_name, Path("cpex/framework/manager.py"))
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, module_name, module)
@@ -76,13 +76,21 @@ async def test_manager_timeout_handling():
             return PluginResult(continue_processing=True)
 
     # Test with enforce mode
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
     manager._executor.timeout = 0.01  # Set very short timeout
 
     # Mock plugin registry
     plugin_config = PluginConfig(
-        name="TimeoutPlugin", description="Test timeout plugin", author="Test", version="1.0", tags=["test"], kind="TimeoutPlugin", mode=PluginMode.ENFORCE, hooks=["prompt_pre_fetch"], config={}
+        name="TimeoutPlugin",
+        description="Test timeout plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="TimeoutPlugin",
+        mode=PluginMode.ENFORCE,
+        hooks=["prompt_pre_fetch"],
+        config={},
     )
     timeout_plugin = TimeoutPlugin(plugin_config)
 
@@ -95,7 +103,9 @@ async def test_manager_timeout_handling():
 
         escaped_regex = re.escape("Plugin TimeoutPlugin exceeded 0.01s timeout")
         with pytest.raises(PluginError, match=escaped_regex):
-            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context)
+            result, _ = await manager.invoke_hook(
+                PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context
+            )
 
         # Should pass since fail_on_plugin_error: false
         # assert result.continue_processing
@@ -127,11 +137,19 @@ async def test_manager_exception_handling():
         async def prompt_pre_fetch(self, payload, context):
             raise RuntimeError("Plugin error!")
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     plugin_config = PluginConfig(
-        name="ErrorPlugin", description="Test error plugin", author="Test", version="1.0", tags=["test"], kind="ErrorPlugin", mode=PluginMode.ENFORCE, hooks=["prompt_pre_fetch"], config={}
+        name="ErrorPlugin",
+        description="Test error plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="ErrorPlugin",
+        mode=PluginMode.ENFORCE,
+        hooks=["prompt_pre_fetch"],
+        config={},
     )
     error_plugin = ErrorPlugin(plugin_config)
 
@@ -145,7 +163,9 @@ async def test_manager_exception_handling():
 
         escaped_regex = re.escape("RuntimeError('Plugin error!')")
         with pytest.raises(PluginError, match=escaped_regex):
-            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context)
+            result, _ = await manager.invoke_hook(
+                PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context
+            )
 
         # Should block in enforce mode
         # assert result.continue_processing
@@ -204,14 +224,14 @@ async def test_manager_exception_handling():
 @pytest.mark.asyncio
 async def test_manager_condition_filtering():
     """Test that plugins are filtered based on conditions across all hook types."""
-    from mcpgateway.plugins.framework import (
+    from cpex.framework import (
         ResourceHookType,
         ResourcePreFetchPayload,
         AgentHookType,
         AgentPreInvokePayload,
     )
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     # ========== Test 1: Server ID condition (GlobalContext) ==========
@@ -284,7 +304,9 @@ async def test_manager_condition_filtering():
         # Test with matching prompt
         prompt_match = PromptPrehookPayload(prompt_id="greeting", args={})
         global_context = GlobalContext(request_id="3")
-        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt_match, global_context=global_context)
+        result, _ = await manager.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, prompt_match, global_context=global_context
+        )
 
         assert result.continue_processing
         assert result.modified_payload is not None
@@ -292,7 +314,9 @@ async def test_manager_condition_filtering():
 
         # Test with non-matching prompt
         prompt_no_match = PromptPrehookPayload(prompt_id="other", args={})
-        result2, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt_no_match, global_context=global_context)
+        result2, _ = await manager.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, prompt_no_match, global_context=global_context
+        )
 
         assert result2.continue_processing
         assert result2.modified_payload is None  # Plugin skipped
@@ -331,7 +355,9 @@ async def test_manager_condition_filtering():
 
         # Test with non-matching tool
         tool_no_match = ToolPreInvokePayload(name="other_tool", args={})
-        result2, _ = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_no_match, global_context=global_context)
+        result2, _ = await manager.invoke_hook(
+            ToolHookType.TOOL_PRE_INVOKE, tool_no_match, global_context=global_context
+        )
 
         assert result2.continue_processing
         assert result2.modified_payload is None  # Plugin skipped
@@ -362,7 +388,9 @@ async def test_manager_condition_filtering():
         # Test with matching resource
         resource_match = ResourcePreFetchPayload(uri="file:///data.txt", metadata={})
         global_context = GlobalContext(request_id="5")
-        result, _ = await manager.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, resource_match, global_context=global_context)
+        result, _ = await manager.invoke_hook(
+            ResourceHookType.RESOURCE_PRE_FETCH, resource_match, global_context=global_context
+        )
 
         assert result.continue_processing
         assert result.modified_payload is not None
@@ -370,7 +398,9 @@ async def test_manager_condition_filtering():
 
         # Test with non-matching resource
         resource_no_match = ResourcePreFetchPayload(uri="file:///other.txt", metadata={})
-        result2, _ = await manager.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, resource_no_match, global_context=global_context)
+        result2, _ = await manager.invoke_hook(
+            ResourceHookType.RESOURCE_PRE_FETCH, resource_no_match, global_context=global_context
+        )
 
         assert result2.continue_processing
         assert result2.modified_payload is None  # Plugin skipped
@@ -401,7 +431,9 @@ async def test_manager_condition_filtering():
         # Test with matching agent
         agent_match = AgentPreInvokePayload(agent_id="agent1", messages=[], parameters={})
         global_context = GlobalContext(request_id="6")
-        result, _ = await manager.invoke_hook(AgentHookType.AGENT_PRE_INVOKE, agent_match, global_context=global_context)
+        result, _ = await manager.invoke_hook(
+            AgentHookType.AGENT_PRE_INVOKE, agent_match, global_context=global_context
+        )
 
         assert result.continue_processing
         assert result.modified_payload is not None
@@ -409,7 +441,9 @@ async def test_manager_condition_filtering():
 
         # Test with non-matching agent
         agent_no_match = AgentPreInvokePayload(agent_id="agent3", messages=[], parameters={})
-        result2, _ = await manager.invoke_hook(AgentHookType.AGENT_PRE_INVOKE, agent_no_match, global_context=global_context)
+        result2, _ = await manager.invoke_hook(
+            AgentHookType.AGENT_PRE_INVOKE, agent_no_match, global_context=global_context
+        )
 
         assert result2.continue_processing
         assert result2.modified_payload is None  # Plugin skipped
@@ -448,7 +482,9 @@ async def test_manager_condition_filtering():
 
         # Test with server_id mismatch
         global_context2 = GlobalContext(request_id="8", server_id="server2")
-        result2, _ = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context2)
+        result2, _ = await manager.invoke_hook(
+            ToolHookType.TOOL_PRE_INVOKE, tool_payload, global_context=global_context2
+        )
 
         assert result2.continue_processing
         assert result2.modified_payload is None  # Plugin skipped
@@ -456,7 +492,9 @@ async def test_manager_condition_filtering():
         # Test with tool name mismatch
         tool_payload2 = ToolPreInvokePayload(name="other_tool", args={})
         global_context3 = GlobalContext(request_id="9", server_id="server1")
-        result3, _ = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload2, global_context=global_context3)
+        result3, _ = await manager.invoke_hook(
+            ToolHookType.TOOL_PRE_INVOKE, tool_payload2, global_context=global_context3
+        )
 
         assert result3.continue_processing
         assert result3.modified_payload is None  # Plugin skipped
@@ -479,16 +517,37 @@ async def test_manager_metadata_aggregation():
                 metadata={"plugin2": "data2", "shared": "value2"},  # Overwrites shared
             )
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
-    config1 = PluginConfig(name="Plugin1", description="Metadata plugin 1", author="Test", version="1.0", tags=["test"], kind="Plugin1", hooks=["prompt_pre_fetch"], config={})
-    config2 = PluginConfig(name="Plugin2", description="Metadata plugin 2", author="Test", version="1.0", tags=["test"], kind="Plugin2", hooks=["prompt_pre_fetch"], config={})
+    config1 = PluginConfig(
+        name="Plugin1",
+        description="Metadata plugin 1",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="Plugin1",
+        hooks=["prompt_pre_fetch"],
+        config={},
+    )
+    config2 = PluginConfig(
+        name="Plugin2",
+        description="Metadata plugin 2",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="Plugin2",
+        hooks=["prompt_pre_fetch"],
+        config={},
+    )
     plugin1 = MetadataPlugin1(config1)
     plugin2 = MetadataPlugin2(config2)
 
     with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
-        refs = [HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin1)), HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin2))]
+        refs = [
+            HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin1)),
+            HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin2)),
+        ]
         mock_get.return_value = refs
 
         prompt = PromptPrehookPayload(prompt_id="test", args={})
@@ -520,11 +579,18 @@ async def test_manager_local_context_persistence():
             payload.result.messages[0].content.text = f"Counter: {counter}"
             return PluginResult(continue_processing=True, modified_payload=payload)
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     config = PluginConfig(
-        name="StatefulPlugin", description="Test stateful plugin", author="Test", version="1.0", tags=["test"], kind="StatefulPlugin", hooks=["prompt_pre_fetch", "prompt_post_fetch"], config={}
+        name="StatefulPlugin",
+        description="Test stateful plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="StatefulPlugin",
+        hooks=["prompt_pre_fetch", "prompt_post_fetch"],
+        config={},
     )
     plugin = StatefulPlugin(config)
 
@@ -546,15 +612,19 @@ async def test_manager_local_context_persistence():
         prompt = PromptPrehookPayload(prompt_id="test", args={})
         global_context = GlobalContext(request_id="1")
 
-        result_pre, contexts = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context)
+        result_pre, contexts = await manager.invoke_hook(
+            PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context
+        )
         assert result_pre.continue_processing
 
         # Call to post_fetch with same contexts
-        message = Message(content=TextContent(type="text", text="Original"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="Original"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         post_payload = PromptPosthookPayload(prompt_id="test", result=prompt_result)
 
-        result_post, _ = await manager.invoke_hook(PromptHookType.PROMPT_POST_FETCH, post_payload, global_context=global_context, local_contexts=contexts)
+        result_post, _ = await manager.invoke_hook(
+            PromptHookType.PROMPT_POST_FETCH, post_payload, global_context=global_context, local_contexts=contexts
+        )
 
         # Should have modified with persisted state
         assert result_post.continue_processing
@@ -570,14 +640,27 @@ async def test_manager_plugin_blocking():
 
     class BlockingPlugin(Plugin):
         async def prompt_pre_fetch(self, payload, context):
-            violation = PluginViolation(reason="Content violation", description="Blocked content detected", code="CONTENT_BLOCKED", details={"content": payload.args})
+            violation = PluginViolation(
+                reason="Content violation",
+                description="Blocked content detected",
+                code="CONTENT_BLOCKED",
+                details={"content": payload.args},
+            )
             return PluginResult(continue_processing=False, violation=violation)
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     config = PluginConfig(
-        name="BlockingPlugin", description="Test blocking plugin", author="Test", version="1.0", tags=["test"], kind="BlockingPlugin", mode=PluginMode.ENFORCE, hooks=["prompt_pre_fetch"], config={}
+        name="BlockingPlugin",
+        description="Test blocking plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="BlockingPlugin",
+        mode=PluginMode.ENFORCE,
+        hooks=["prompt_pre_fetch"],
+        config={},
     )
     plugin = BlockingPlugin(config)
 
@@ -597,7 +680,9 @@ async def test_manager_plugin_blocking():
         assert result.violation.plugin_name == "BlockingPlugin"
 
         with pytest.raises(PluginViolationError) as pve:
-            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True)
+            result, _ = await manager.invoke_hook(
+                PromptHookType.PROMPT_PRE_FETCH, prompt, global_context=global_context, violations_as_exceptions=True
+            )
         assert pve.value.violation
         assert pve.value.message
         assert pve.value.violation.code == "CONTENT_BLOCKED"
@@ -611,10 +696,12 @@ async def test_manager_plugin_permissive_blocking():
 
     class BlockingPlugin(Plugin):
         async def prompt_pre_fetch(self, payload, context):
-            violation = PluginViolation(reason="Would block", description="Content would be blocked", code="WOULD_BLOCK")
+            violation = PluginViolation(
+                reason="Would block", description="Content would be blocked", code="WOULD_BLOCK"
+            )
             return PluginResult(continue_processing=False, violation=violation)
 
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     config = PluginConfig(
@@ -657,7 +744,7 @@ async def test_manager_plugin_permissive_blocking():
 @pytest.mark.asyncio
 async def test_manager_shutdown_behavior():
     """Test manager shutdown behavior."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     await manager.initialize()
     assert manager.initialized
 
@@ -677,8 +764,8 @@ async def test_manager_shutdown_behavior():
 async def test_manager_payload_size_validation():
     """Test payload size validation functionality."""
     # First-Party
-    from mcpgateway.plugins.framework.manager import MAX_PAYLOAD_SIZE, PayloadSizeError, PluginExecutor
-    from mcpgateway.plugins.framework import PromptPosthookPayload, PromptPrehookPayload
+    from cpex.framework.manager import MAX_PAYLOAD_SIZE, PayloadSizeError, PluginExecutor
+    from cpex.framework import PromptPosthookPayload, PromptPrehookPayload
 
     # Test payload size validation directly on executor (covers lines 252, 258)
     executor = PluginExecutor()
@@ -692,12 +779,9 @@ async def test_manager_payload_size_validation():
         executor._validate_payload_size(large_prompt)
 
     # Test large result payload (covers line 258)
-    # First-Party
-    from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-
     large_text = "y" * (MAX_PAYLOAD_SIZE + 1)
-    message = Message(role=Role.USER, content=TextContent(type="text", text=large_text))
-    large_result = PromptResult(messages=[message])
+    message = SimpleNamespace(role="user", content=SimpleNamespace(type="text", text=large_text))
+    large_result = SimpleNamespace(messages=[message])
     large_post_payload = PromptPosthookPayload(prompt_id="test", result=large_result)
 
     # Should raise PayloadSizeError for large result
@@ -711,10 +795,10 @@ async def test_manager_initialization_edge_cases():
     """Test manager initialization edge cases."""
 
     # Test manager already initialized (covers lines 481-482)
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
-    with patch("mcpgateway.plugins.framework.manager.logger") as mock_logger:
+    with patch("cpex.framework.manager.logger") as mock_logger:
         # Initialize again - should skip
         await manager.initialize()
         mock_logger.debug.assert_called_with("Plugin manager already initialized")
@@ -723,7 +807,7 @@ async def test_manager_initialization_edge_cases():
 
     # Test plugin instantiation failure (covers lines 495-501)
     # First-Party
-    from mcpgateway.plugins.framework.models import PluginConfig, PluginMode, PluginSettings
+    from cpex.framework.models import PluginConfig, PluginMode, PluginSettings
 
     manager2 = PluginManager()
     manager2._config = Config(
@@ -775,9 +859,8 @@ async def test_manager_initialization_edge_cases():
 async def test_base_plugin_coverage():
     """Test base plugin functionality for complete coverage."""
     # First-Party
-    from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-    from mcpgateway.plugins.framework.base import PluginRef
-    from mcpgateway.plugins.framework import (
+    from cpex.framework.base import PluginRef
+    from cpex.framework import (
         GlobalContext,
         PluginConfig,
         PluginContext,
@@ -821,8 +904,8 @@ async def test_base_plugin_coverage():
         await plugin.prompt_pre_fetch(payload, context)
 
     # Test NotImplementedError for prompt_post_fetch (covers lines 167-171)
-    message = Message(role=Role.USER, content=TextContent(type="text", text="test"))
-    result = PromptResult(messages=[message])
+    message = SimpleNamespace(role="user", content=SimpleNamespace(type="text", text="test"))
+    result = SimpleNamespace(messages=[message])
     post_payload = PromptPosthookPayload(prompt_id="test", result=result)
 
     with pytest.raises(AttributeError, match="'Plugin' object has no attribute 'prompt_post_fetch'"):
@@ -843,8 +926,8 @@ async def test_base_plugin_coverage():
 async def test_plugin_types_coverage():
     """Test plugin types functionality for complete coverage."""
     # First-Party
-    from mcpgateway.plugins.framework.errors import PluginViolationError
-    from mcpgateway.plugins.framework.models import PluginContext, PluginViolation
+    from cpex.framework.errors import PluginViolationError
+    from cpex.framework.models import PluginContext, PluginViolation
 
     # Test PluginContext state methods (covers lines 266, 275)
     plugin_ctx = PluginContext(global_context=GlobalContext(request_id="test", user="testuser"))
@@ -866,7 +949,9 @@ async def test_plugin_types_coverage():
     assert len(plugin_ctx.metadata) == 0
 
     # Test PluginViolationError (covers lines 301-303)
-    violation = PluginViolation(reason="Test violation", description="Test description", code="TEST_CODE", details={"key": "value"})
+    violation = PluginViolation(
+        reason="Test violation", description="Test description", code="TEST_CODE", details={"key": "value"}
+    )
 
     error = PluginViolationError("Test message", violation)
 
@@ -879,13 +964,22 @@ async def test_plugin_types_coverage():
 async def test_plugin_loader_return_none():
     """Test plugin loader return None case."""
     # First-Party
-    from mcpgateway.plugins.framework.loader.plugin import PluginLoader
-    from mcpgateway.plugins.framework import PluginConfig
+    from cpex.framework.loader.plugin import PluginLoader
+    from cpex.framework import PluginConfig
 
     loader = PluginLoader()
 
     # Test return None when plugin_type is None (covers line 90)
-    config = PluginConfig(name="TestPlugin", description="Test", author="Test", version="1.0", tags=["test"], kind="test.plugin.TestPlugin", hooks=[PromptHookType.PROMPT_PRE_FETCH], config={})
+    config = PluginConfig(
+        name="TestPlugin",
+        description="Test",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="test.plugin.TestPlugin",
+        hooks=[PromptHookType.PROMPT_PRE_FETCH],
+        config={},
+    )
 
     # Mock the plugin_types dict to contain None for this kind
     loader._plugin_types[config.kind] = None
@@ -897,9 +991,11 @@ async def test_plugin_loader_return_none():
 def test_plugin_violation_setter_validation():
     """Test PluginViolation plugin_name setter validation."""
     # First-Party
-    from mcpgateway.plugins.framework.models import PluginViolation
+    from cpex.framework.models import PluginViolation
 
-    violation = PluginViolation(reason="Test", description="Test description", code="TEST_CODE", details={"key": "value"})
+    violation = PluginViolation(
+        reason="Test", description="Test description", code="TEST_CODE", details={"key": "value"}
+    )
 
     # Test valid plugin name setting
     violation.plugin_name = "valid_plugin_name"
@@ -921,7 +1017,7 @@ def test_plugin_violation_setter_validation():
 @pytest.mark.asyncio
 async def test_manager_compare_function_wrapper():
     """Test the compare function wrapper in _run_plugins."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     # The compare function is used internally in _run_plugins
@@ -956,7 +1052,9 @@ async def test_manager_compare_function_wrapper():
 
         # Test with non-matching tool
         tool_payload2 = ToolPreInvokePayload(name="other_tool", args={})
-        result2, _ = await manager.invoke_hook(ToolHookType.TOOL_PRE_INVOKE, tool_payload2, global_context=global_context)
+        result2, _ = await manager.invoke_hook(
+            ToolHookType.TOOL_PRE_INVOKE, tool_payload2, global_context=global_context
+        )
         assert result2.continue_processing
 
     await manager.shutdown()
@@ -965,7 +1063,7 @@ async def test_manager_compare_function_wrapper():
 @pytest.mark.asyncio
 async def test_manager_tool_post_invoke_coverage():
     """Test tool_post_invoke with various scenarios."""
-    manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+    manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
     await manager.initialize()
 
     class ModifyingPlugin(Plugin):
@@ -973,7 +1071,16 @@ async def test_manager_tool_post_invoke_coverage():
             payload.result["modified"] = True
             return PluginResult(continue_processing=True, modified_payload=payload)
 
-    config = PluginConfig(name="ModifyingPlugin", description="Test modifying plugin", author="Test", version="1.0", tags=["test"], kind="ModifyingPlugin", hooks=["tool_post_invoke"], config={})
+    config = PluginConfig(
+        name="ModifyingPlugin",
+        description="Test modifying plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="ModifyingPlugin",
+        hooks=["tool_post_invoke"],
+        config={},
+    )
     plugin = ModifyingPlugin(config)
 
     with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
@@ -983,7 +1090,9 @@ async def test_manager_tool_post_invoke_coverage():
         tool_payload = ToolPostInvokePayload(name="test_tool", result={"original": "data"})
         global_context = GlobalContext(request_id="1")
 
-        result, _ = await manager.invoke_hook(ToolHookType.TOOL_POST_INVOKE, tool_payload, global_context=global_context)
+        result, _ = await manager.invoke_hook(
+            ToolHookType.TOOL_POST_INVOKE, tool_payload, global_context=global_context
+        )
 
         assert result.continue_processing
         assert result.modified_payload is not None

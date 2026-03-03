@@ -28,11 +28,31 @@ import orjson
 
 # First-Party
 from cpex.framework.base import HookRef, Plugin, PluginRef
-from cpex.framework.constants import CONTEXT, ERROR, GET_PLUGIN_CONFIG, HOOK_TYPE, IGNORE_CONFIG_EXTERNAL, INVOKE_HOOK, NAME, PAYLOAD, PLUGIN_NAME, PYTHON_SUFFIX, RESULT
+from cpex.framework.constants import (
+    CONTEXT,
+    ERROR,
+    GET_PLUGIN_CONFIG,
+    HOOK_TYPE,
+    IGNORE_CONFIG_EXTERNAL,
+    INVOKE_HOOK,
+    NAME,
+    PAYLOAD,
+    PLUGIN_NAME,
+    PYTHON_SUFFIX,
+    RESULT,
+)
 from cpex.framework.errors import convert_exception_to_error, PluginError
 from cpex.framework.external.mcp.tls_utils import create_ssl_context
 from cpex.framework.hooks.registry import get_hook_registry
-from cpex.framework.models import MCPClientTLSConfig, PluginConfig, PluginContext, PluginErrorModel, PluginPayload, PluginResult, TransportType
+from cpex.framework.models import (
+    MCPClientTLSConfig,
+    PluginConfig,
+    PluginContext,
+    PluginErrorModel,
+    PluginPayload,
+    PluginResult,
+    TransportType,
+)
 from cpex.framework.settings import get_http_client_settings
 
 logger = logging.getLogger(__name__)
@@ -74,21 +94,35 @@ class ExternalPlugin(Plugin):
         """
 
         if not self._config.mcp:
-            raise PluginError(error=PluginErrorModel(message="The mcp section must be defined for external plugin", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message="The mcp section must be defined for external plugin", plugin_name=self.name
+                )
+            )
         if self._config.mcp.proto == TransportType.STDIO:
             if not (self._config.mcp.script or self._config.mcp.cmd):
-                raise PluginError(error=PluginErrorModel(message="STDIO transport requires script or cmd", plugin_name=self.name))
-            await self.__connect_to_stdio_server(self._config.mcp.script, self._config.mcp.cmd, self._config.mcp.env, self._config.mcp.cwd)
+                raise PluginError(
+                    error=PluginErrorModel(message="STDIO transport requires script or cmd", plugin_name=self.name)
+                )
+            await self.__connect_to_stdio_server(
+                self._config.mcp.script, self._config.mcp.cmd, self._config.mcp.env, self._config.mcp.cwd
+            )
         elif self._config.mcp.proto == TransportType.STREAMABLEHTTP:
             if not self._config.mcp.url:
-                raise PluginError(error=PluginErrorModel(message="STREAMABLEHTTP transport requires url", plugin_name=self.name))
+                raise PluginError(
+                    error=PluginErrorModel(message="STREAMABLEHTTP transport requires url", plugin_name=self.name)
+                )
             await self.__connect_to_http_server(self._config.mcp.url)
 
         try:
             config = await self.__get_plugin_config()
 
             if not config:
-                raise PluginError(error=PluginErrorModel(message="Unable to retrieve configuration for external plugin", plugin_name=self.name))
+                raise PluginError(
+                    error=PluginErrorModel(
+                        message="Unable to retrieve configuration for external plugin", plugin_name=self.name
+                    )
+                )
 
             current_config = self._config.model_dump(exclude_unset=True)
             remote_config = config.model_dump(exclude_unset=True)
@@ -112,7 +146,9 @@ class ExternalPlugin(Plugin):
             logger.exception(e)
             raise PluginError(error=convert_exception_to_error(e, plugin_name=self.name))
 
-    def __resolve_stdio_command(self, script_path: str | None, cmd: list[str] | None, cwd: str | None) -> tuple[str, list[str]]:
+    def __resolve_stdio_command(
+        self, script_path: str | None, cmd: list[str] | None, cwd: str | None
+    ) -> tuple[str, list[str]]:
         """Resolve the stdio command + args from config.
 
         Args:
@@ -128,25 +164,39 @@ class ExternalPlugin(Plugin):
         """
         if cmd:
             if not isinstance(cmd, list) or not cmd or not all(isinstance(part, str) and part.strip() for part in cmd):
-                raise PluginError(error=PluginErrorModel(message="STDIO cmd must be a non-empty list of strings", plugin_name=self.name))
+                raise PluginError(
+                    error=PluginErrorModel(
+                        message="STDIO cmd must be a non-empty list of strings", plugin_name=self.name
+                    )
+                )
             return cmd[0], cmd[1:]
 
         if not script_path:
-            raise PluginError(error=PluginErrorModel(message="STDIO transport requires script or cmd", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(message="STDIO transport requires script or cmd", plugin_name=self.name)
+            )
 
         server_path = Path(script_path).expanduser()
         if not server_path.is_absolute() and cwd:
             server_path = Path(cwd).expanduser() / server_path
         resolved_script_path = str(server_path)
         if not server_path.is_file():
-            raise PluginError(error=PluginErrorModel(message=f"Server script {resolved_script_path} does not exist.", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message=f"Server script {resolved_script_path} does not exist.", plugin_name=self.name
+                )
+            )
 
         if server_path.suffix == PYTHON_SUFFIX:
             return sys.executable, [resolved_script_path]
         if server_path.suffix == ".sh":
             return "sh", [resolved_script_path]
         if not os.access(server_path, os.X_OK):
-            raise PluginError(error=PluginErrorModel(message=f"Server script {resolved_script_path} must be executable.", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message=f"Server script {resolved_script_path} must be executable.", plugin_name=self.name
+                )
+            )
         return resolved_script_path, []
 
     def __build_stdio_env(self, extra_env: dict[str, str] | None) -> dict[str, str]:
@@ -163,7 +213,9 @@ class ExternalPlugin(Plugin):
             current_env.update(extra_env)
         return current_env
 
-    async def __run_stdio_session(self, server_script_path: str | None, cmd: list[str] | None, env: dict[str, str] | None, cwd: str | None) -> None:
+    async def __run_stdio_session(
+        self, server_script_path: str | None, cmd: list[str] | None, env: dict[str, str] | None, cwd: str | None
+    ) -> None:
         """Run a stdio session in a dedicated task for consistent setup/teardown.
 
         Args:
@@ -186,7 +238,9 @@ class ExternalPlugin(Plugin):
 
             response = await self._session.list_tools()
             tools = response.tools
-            logger.info("\nConnected to plugin MCP server (stdio) with tools: %s", " ".join([tool.name for tool in tools]))
+            logger.info(
+                "\nConnected to plugin MCP server (stdio) with tools: %s", " ".join([tool.name for tool in tools])
+            )
         except Exception as e:
             self._stdio_error = e
             logger.exception(e)
@@ -205,7 +259,9 @@ class ExternalPlugin(Plugin):
         if self._stdio_exit_stack:
             await self._stdio_exit_stack.aclose()
 
-    async def __connect_to_stdio_server(self, server_script_path: str | None, cmd: list[str] | None, env: dict[str, str] | None, cwd: str | None) -> None:
+    async def __connect_to_stdio_server(
+        self, server_script_path: str | None, cmd: list[str] | None, env: dict[str, str] | None, cwd: str | None
+    ) -> None:
         """Connect to an MCP plugin server via stdio.
 
         Args:
@@ -318,7 +374,9 @@ class ExternalPlugin(Plugin):
 
             try:
                 client_factory = _tls_httpx_client_factory
-                streamable_client = streamablehttp_client(uri, httpx_client_factory=client_factory, terminate_on_close=False)
+                streamable_client = streamablehttp_client(
+                    uri, httpx_client_factory=client_factory, terminate_on_close=False
+                )
                 http_transport = await self._exit_stack.enter_async_context(streamable_client)
                 self._http, self._write, get_session_id = http_transport
                 self._get_session_id = get_session_id
@@ -366,20 +424,32 @@ class ExternalPlugin(Plugin):
         registry = get_hook_registry()
         result_type = registry.get_result_type(hook_type)
         if not result_type:
-            raise PluginError(error=PluginErrorModel(message=f"Hook type '{hook_type}' not registered in hook registry", plugin_name=self.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message=f"Hook type '{hook_type}' not registered in hook registry", plugin_name=self.name
+                )
+            )
 
         if not self._session:
             raise PluginError(error=PluginErrorModel(message="Plugin session not initialized", plugin_name=self.name))
 
         try:
-            result = await self._session.call_tool(INVOKE_HOOK, {HOOK_TYPE: hook_type, PLUGIN_NAME: self.name, PAYLOAD: payload, CONTEXT: context})
+            result = await self._session.call_tool(
+                INVOKE_HOOK, {HOOK_TYPE: hook_type, PLUGIN_NAME: self.name, PAYLOAD: payload, CONTEXT: context}
+            )
             for content in result.content:
                 if not isinstance(content, TextContent):
                     continue
                 try:
                     res = orjson.loads(content.text)
                 except orjson.JSONDecodeError:
-                    raise PluginError(error=PluginErrorModel(message=f"Error trying to decode json: {content.text}", code="JSON_DECODE_ERROR", plugin_name=self.name))
+                    raise PluginError(
+                        error=PluginErrorModel(
+                            message=f"Error trying to decode json: {content.text}",
+                            code="JSON_DECODE_ERROR",
+                            plugin_name=self.name,
+                        )
+                    )
                 if CONTEXT in res:
                     cxt = PluginContext.model_validate(res[CONTEXT])
                     context.state = cxt.state
@@ -396,7 +466,9 @@ class ExternalPlugin(Plugin):
         except Exception as e:
             logger.exception(e)
             raise PluginError(error=convert_exception_to_error(e, plugin_name=self.name))
-        raise PluginError(error=PluginErrorModel(message=f"Received invalid response. Result = {result}", plugin_name=self.name))
+        raise PluginError(
+            error=PluginErrorModel(message=f"Received invalid response. Result = {result}", plugin_name=self.name)
+        )
 
     async def __get_plugin_config(self) -> PluginConfig | None:
         """Retrieve plugin configuration for the current plugin on the remote MCP server.
@@ -492,4 +564,9 @@ class ExternalHookRef(HookRef):
         if hasattr(plugin_ref.plugin, INVOKE_HOOK):
             self._func: Callable[[PluginPayload, PluginContext], Awaitable[PluginResult]] = partial(plugin_ref.plugin.invoke_hook, hook)  # type: ignore[attr-defined]
         else:
-            raise PluginError(error=PluginErrorModel(message=f"Plugin: {plugin_ref.plugin.name} is not an external plugin", plugin_name=plugin_ref.plugin.name))
+            raise PluginError(
+                error=PluginErrorModel(
+                    message=f"Plugin: {plugin_ref.plugin.name} is not an external plugin",
+                    plugin_name=plugin_ref.plugin.name,
+                )
+            )

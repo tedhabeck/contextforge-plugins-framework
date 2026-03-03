@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_settings.py
+"""Location: ./tests/unit/cpex/framework/test_settings.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo
 
 Tests for the plugin framework settings module.
-Verifies default values, environment variable overrides, and settings isolation
-from mcpgateway.config.
+Verifies default values, environment variable overrides, and settings isolation.
 """
 
 # Standard
@@ -16,7 +15,7 @@ import os
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.settings import PluginsSettings
+from cpex.framework.settings import PluginsSettings
 
 
 class TestPluginsSettingsDefaults:
@@ -262,7 +261,7 @@ class TestPluginsSettingsModuleSingleton:
     """Test the module-level settings singleton."""
 
     def test_module_settings_instance_exists(self):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         assert settings
 
@@ -272,7 +271,7 @@ class TestPluginsSettingsStartupIsolation:
 
     def test_config_file_survives_malformed_server_port(self, monkeypatch):
         """config_file must be readable even with PLUGINS_SERVER_PORT=abc."""
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         settings.cache_clear()
@@ -283,7 +282,7 @@ class TestPluginsSettingsStartupIsolation:
 
     def test_plugin_timeout_survives_malformed_server_port(self, monkeypatch):
         """plugin_timeout must be readable even with PLUGINS_SERVER_PORT=abc."""
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         settings.cache_clear()
@@ -293,7 +292,7 @@ class TestPluginsSettingsStartupIsolation:
             settings.cache_clear()
 
     def test_config_file_env_override(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_CONFIG_FILE", "/custom/plugins.yaml")
         settings.cache_clear()
@@ -303,7 +302,7 @@ class TestPluginsSettingsStartupIsolation:
             settings.cache_clear()
 
     def test_plugin_timeout_env_override(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_PLUGIN_TIMEOUT", "60")
         settings.cache_clear()
@@ -313,12 +312,11 @@ class TestPluginsSettingsStartupIsolation:
             settings.cache_clear()
 
 
-
 class TestPluginsSettingsEnabledFlag:
     """Test lazy enabled flag resolution behavior."""
 
     def test_enabled_reads_from_env_file_without_parsing_full_settings(self, monkeypatch, tmp_path):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         env_file = tmp_path / ".env"
         env_file.write_text("PLUGINS_ENABLED=true\nPLUGINS_SERVER_PORT=abc\n", encoding="utf-8")
@@ -329,7 +327,7 @@ class TestPluginsSettingsEnabledFlag:
         assert settings.enabled is True
 
     def test_enabled_reads_inline_comment_value(self, monkeypatch, tmp_path):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         env_file = tmp_path / ".env"
         env_file.write_text("PLUGINS_ENABLED=true # enable plugin framework\n", encoding="utf-8")
@@ -344,7 +342,7 @@ class TestPluginsHttpClientSettings:
     """Test the lightweight PluginsHttpClientSettings model."""
 
     def test_defaults(self):
-        from mcpgateway.plugins.framework.settings import PluginsHttpClientSettings
+        from cpex.framework.settings import PluginsHttpClientSettings
 
         s = PluginsHttpClientSettings()
         assert s.skip_ssl_verify is False
@@ -357,7 +355,7 @@ class TestPluginsHttpClientSettings:
         assert s.httpx_pool_timeout == 10.0
 
     def test_env_override(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import PluginsHttpClientSettings
+        from cpex.framework.settings import PluginsHttpClientSettings
 
         monkeypatch.setenv("PLUGINS_HTTPX_CONNECT_TIMEOUT", "15.0")
         monkeypatch.setenv("PLUGINS_SKIP_SSL_VERIFY", "true")
@@ -366,7 +364,7 @@ class TestPluginsHttpClientSettings:
         assert s.skip_ssl_verify is True
 
     def test_get_http_client_settings_cached(self):
-        from mcpgateway.plugins.framework.settings import get_http_client_settings
+        from cpex.framework.settings import get_http_client_settings
 
         s1 = get_http_client_settings()
         s2 = get_http_client_settings()
@@ -382,19 +380,19 @@ class TestPluginsCliSettings:
         for key in list(os.environ):
             if key.startswith("PLUGINS_CLI_"):
                 monkeypatch.delenv(key, raising=False)
-        from mcpgateway.plugins.framework.settings import PluginsCliSettings
+        from cpex.framework.settings import PluginsCliSettings
 
         monkeypatch.setattr(PluginsCliSettings, "model_config", {**PluginsCliSettings.model_config, "env_file": None})
 
     def test_defaults(self):
-        from mcpgateway.plugins.framework.settings import PluginsCliSettings
+        from cpex.framework.settings import PluginsCliSettings
 
         s = PluginsCliSettings()
         assert s.cli_completion is False
         assert s.cli_markup_mode is None
 
     def test_env_override(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import PluginsCliSettings
+        from cpex.framework.settings import PluginsCliSettings
 
         monkeypatch.setenv("PLUGINS_CLI_COMPLETION", "true")
         monkeypatch.setenv("PLUGINS_CLI_MARKUP_MODE", "markdown")
@@ -403,7 +401,7 @@ class TestPluginsCliSettings:
         assert s.cli_markup_mode == "markdown"
 
     def test_get_cli_settings_cached(self):
-        from mcpgateway.plugins.framework.settings import get_cli_settings
+        from cpex.framework.settings import get_cli_settings
 
         s1 = get_cli_settings()
         s2 = get_cli_settings()
@@ -420,7 +418,7 @@ class TestLazySettingsWrapperProperties:
                 monkeypatch.delenv(key, raising=False)
 
     def test_ssrf_protection_enabled_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SSRF_PROTECTION_ENABLED", "false")
         settings.cache_clear()
@@ -428,7 +426,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_transport_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_TRANSPORT", "stdio")
         settings.cache_clear()
@@ -436,7 +434,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_unix_socket_path_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_UNIX_SOCKET_PATH", "/tmp/test.sock")
         settings.cache_clear()
@@ -444,7 +442,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_default_hook_policy_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_DEFAULT_HOOK_POLICY", "deny")
         settings.cache_clear()
@@ -452,7 +450,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_config_path_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_CONFIG_PATH", "/custom/path.yaml")
         settings.cache_clear()
@@ -460,7 +458,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_cli_completion_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_CLI_COMPLETION", "true")
         settings.cache_clear()
@@ -468,7 +466,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_cli_markup_mode_property(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_CLI_MARKUP_MODE", "markdown")
         settings.cache_clear()
@@ -476,7 +474,7 @@ class TestLazySettingsWrapperProperties:
         settings.cache_clear()
 
     def test_cli_properties_survive_unrelated_malformed_env(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         monkeypatch.setenv("PLUGINS_CLI_MARKUP_MODE", "rich")
@@ -486,7 +484,7 @@ class TestLazySettingsWrapperProperties:
 
     def test_getattr_fallback_to_full_settings(self):
         """Accessing a field without a @property falls back to __getattr__."""
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         settings.cache_clear()
         assert settings.plugin_timeout == 30

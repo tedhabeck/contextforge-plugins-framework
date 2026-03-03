@@ -6,8 +6,7 @@ Authors: Fred Araujo
 
 Protocol definitions for types that cross the gateway-framework boundary.
 
-These replace concrete imports of Message and PromptResult from
-mcpgateway.common.models, allowing the framework to express structural
+These protocols allow the framework to express structural
 contracts without creating a dependency on the outer package.
 
 Examples:

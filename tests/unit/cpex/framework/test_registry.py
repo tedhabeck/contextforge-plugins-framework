@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_registry.py
+"""Location: ./tests/unit/cpex/framework/test_registry.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -14,17 +14,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.loader.config import ConfigLoader
-from mcpgateway.plugins.framework.loader.plugin import PluginLoader
-from mcpgateway.plugins.framework import PluginConfig, Plugin, PromptHookType, ToolHookType
-from mcpgateway.plugins.framework.registry import PluginInstanceRegistry
-from tests.unit.mcpgateway.plugins.fixtures.plugins.simple import SimplePromptPlugin
+from cpex.framework.loader.config import ConfigLoader
+from cpex.framework.loader.plugin import PluginLoader
+from cpex.framework import PluginConfig, PromptHookType, ToolHookType
+from cpex.framework.registry import PluginInstanceRegistry
+from tests.unit.cpex.fixtures.plugins.simple import SimplePromptPlugin
 
 
 @pytest.mark.asyncio
 async def test_registry_register():
     """Load a plugin with the plugin loader."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
     registry = PluginInstanceRegistry()
@@ -47,7 +47,7 @@ async def test_registry_register():
 @pytest.mark.asyncio
 async def test_registry_duplicate_plugin_registration():
     """Test that registering a plugin twice raises ValueError."""
-    config = ConfigLoader.load_config(config="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
     registry = PluginInstanceRegistry()
@@ -118,6 +118,7 @@ async def test_registry_priority_sorting():
     registry.unregister("HighPriority")
     assert registry.plugin_count == 0
 
+
 @pytest.mark.asyncio
 async def test_registry_has_hooks_for():
     """Test has_hooks_for method for hook existence checking."""
@@ -145,6 +146,7 @@ async def test_registry_has_hooks_for():
 
     assert not registry.has_hooks_for(PromptHookType.PROMPT_PRE_FETCH)
 
+
 @pytest.mark.asyncio
 async def test_registry_hook_filtering():
     """Test getting plugins for different hooks."""
@@ -152,11 +154,25 @@ async def test_registry_hook_filtering():
 
     # Create plugin with specific hooks
     pre_fetch_config = PluginConfig(
-        name="PreFetchPlugin", description="Pre-fetch plugin", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_PRE_FETCH], config={}
+        name="PreFetchPlugin",
+        description="Pre-fetch plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="test.Plugin",
+        hooks=[PromptHookType.PROMPT_PRE_FETCH],
+        config={},
     )
 
     post_fetch_config = PluginConfig(
-        name="PostFetchPlugin", description="Post-fetch plugin", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_POST_FETCH], config={}
+        name="PostFetchPlugin",
+        description="Post-fetch plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="test.Plugin",
+        hooks=[PromptHookType.PROMPT_POST_FETCH],
+        config={},
     )
 
     pre_fetch_plugin = SimplePromptPlugin(pre_fetch_config)
@@ -189,9 +205,31 @@ async def test_registry_shutdown():
     registry = PluginInstanceRegistry()
 
     # Create mock plugins with shutdown methods
-    mock_plugin1 = SimplePromptPlugin(PluginConfig(name="Plugin1", description="Test plugin 1", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_PRE_FETCH], config={}))
+    mock_plugin1 = SimplePromptPlugin(
+        PluginConfig(
+            name="Plugin1",
+            description="Test plugin 1",
+            author="Test",
+            version="1.0",
+            tags=["test"],
+            kind="test.Plugin",
+            hooks=[PromptHookType.PROMPT_PRE_FETCH],
+            config={},
+        )
+    )
 
-    mock_plugin2 = SimplePromptPlugin(PluginConfig(name="Plugin2", description="Test plugin 2", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_POST_FETCH], config={}))
+    mock_plugin2 = SimplePromptPlugin(
+        PluginConfig(
+            name="Plugin2",
+            description="Test plugin 2",
+            author="Test",
+            version="1.0",
+            tags=["test"],
+            kind="test.Plugin",
+            hooks=[PromptHookType.PROMPT_POST_FETCH],
+            config={},
+        )
+    )
 
     # Mock the shutdown methods
     mock_plugin1.shutdown = AsyncMock()
@@ -223,7 +261,16 @@ async def test_registry_shutdown_with_error():
 
     # Create mock plugin that fails during shutdown
     failing_plugin = SimplePromptPlugin(
-        PluginConfig(name="FailingPlugin", description="Plugin that fails shutdown", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_PRE_FETCH], config={})
+        PluginConfig(
+            name="FailingPlugin",
+            description="Plugin that fails shutdown",
+            author="Test",
+            version="1.0",
+            tags=["test"],
+            kind="test.Plugin",
+            hooks=[PromptHookType.PROMPT_PRE_FETCH],
+            config={},
+        )
     )
 
     # Mock shutdown to raise an exception
@@ -233,7 +280,7 @@ async def test_registry_shutdown_with_error():
     assert registry.plugin_count == 1
 
     # Shutdown should handle the error gracefully
-    with patch("mcpgateway.plugins.framework.registry.logger") as mock_logger:
+    with patch("cpex.framework.registry.logger") as mock_logger:
         await registry.shutdown()
 
         # Verify error was logged
@@ -270,7 +317,16 @@ async def test_registry_cache_invalidation():
     """Test that priority cache is invalidated correctly."""
     registry = PluginInstanceRegistry()
 
-    plugin_config = PluginConfig(name="TestPlugin", description="Test plugin", author="Test", version="1.0", tags=["test"], kind="test.Plugin", hooks=[PromptHookType.PROMPT_PRE_FETCH], config={})
+    plugin_config = PluginConfig(
+        name="TestPlugin",
+        description="Test plugin",
+        author="Test",
+        version="1.0",
+        tags=["test"],
+        kind="test.Plugin",
+        hooks=[PromptHookType.PROMPT_PRE_FETCH],
+        config={},
+    )
 
     plugin = SimplePromptPlugin(plugin_config)
 

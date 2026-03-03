@@ -124,13 +124,13 @@ Messages use the same `plugin_service.proto` schema as gRPC (`InvokeHookRequest`
 
 ```bash
 # Run all Unix socket tests
-pytest tests/unit/mcpgateway/plugins/framework/external/unix/ -v
+pytest tests/unit/cpex/framework/external/unix/ -v
 
 # Run only unit tests (fast, no subprocess)
-pytest tests/unit/mcpgateway/plugins/framework/external/unix/test_client.py tests/unit/mcpgateway/plugins/framework/external/unix/test_server.py tests/unit/mcpgateway/plugins/framework/external/unix/test_protocol.py -v
+pytest tests/unit/cpex/framework/external/unix/test_client.py tests/unit/cpex/framework/external/unix/test_server.py tests/unit/cpex/framework/external/unix/test_protocol.py -v
 
 # Run only integration tests (spawns real server)
-pytest tests/unit/mcpgateway/plugins/framework/external/unix/test_client_integration.py -v
+pytest tests/unit/cpex/framework/external/unix/test_client_integration.py -v
 ```
 
 ## Test Fixtures

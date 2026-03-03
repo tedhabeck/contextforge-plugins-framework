@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/test_proto_convert.py
+"""Location: ./tests/unit/cpex/framework/external/test_proto_convert.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -11,12 +11,20 @@ Tests for Pydantic <-> Protobuf conversion functions.
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework.models import (
+    GlobalContext,
+    PluginContext,
+    PluginResult,
+    PluginViolation,
+)
+
 try:
     from google.protobuf import json_format
     from google.protobuf.struct_pb2 import Struct
 
-    from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
-    from mcpgateway.plugins.framework.external.proto_convert import (
+    from cpex.framework.external.grpc.proto import plugin_service_pb2
+    from cpex.framework.external.proto_convert import (
         proto_context_to_dict,
         proto_context_to_pydantic,
         proto_global_context_to_pydantic,
@@ -34,14 +42,6 @@ except ImportError:
     HAS_GRPC = False
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed")
-
-# First-Party
-from mcpgateway.plugins.framework.models import (
-    GlobalContext,
-    PluginContext,
-    PluginResult,
-    PluginViolation,
-)
 
 
 class TestPydanticGlobalContextToProto:
@@ -103,9 +103,7 @@ class TestProtoGlobalContextToPydantic:
 
     def test_basic_conversion(self):
         """Test basic proto to pydantic conversion."""
-        proto = plugin_service_pb2.GlobalContext(
-            request_id="req-1", server_id="srv-1", tenant_id="tenant-1"
-        )
+        proto = plugin_service_pb2.GlobalContext(request_id="req-1", server_id="srv-1", tenant_id="tenant-1")
         ctx = proto_global_context_to_pydantic(proto)
         assert ctx.request_id == "req-1"
         assert ctx.server_id == "srv-1"

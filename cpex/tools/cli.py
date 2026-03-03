@@ -95,7 +95,9 @@ def git_user_name() -> str:
         True
     """
     try:
-        res = subprocess.run(["git", "config", "user.name"], stdout=subprocess.PIPE, check=False)  # nosec B607 B603 # Safe: hardcoded git command
+        res = subprocess.run(
+            ["git", "config", "user.name"], stdout=subprocess.PIPE, check=False
+        )  # nosec B607 B603 # Safe: hardcoded git command
         return res.stdout.strip().decode() if not res.returncode else DEFAULT_AUTHOR_NAME
     except Exception:
         return DEFAULT_AUTHOR_NAME
@@ -113,7 +115,9 @@ def git_user_email() -> str:
         True
     """
     try:
-        res = subprocess.run(["git", "config", "user.email"], stdout=subprocess.PIPE, check=False)  # nosec B607 B603 # Safe: hardcoded git command
+        res = subprocess.run(
+            ["git", "config", "user.email"], stdout=subprocess.PIPE, check=False
+        )  # nosec B607 B603 # Safe: hardcoded git command
         return res.stdout.strip().decode() if not res.returncode else DEFAULT_AUTHOR_EMAIL
     except Exception:
         return DEFAULT_AUTHOR_EMAIL
@@ -124,10 +128,19 @@ def git_user_email() -> str:
 # ---------------------------------------------------------------------------
 @app.command(help="Creates a new plugin project from template.")
 def bootstrap(
-    destination: Annotated[Path, typer.Option("--destination", "-d", help="The directory in which to bootstrap the plugin project.")] = DEFAULT_PROJECT_DIR,
-    template_url: Annotated[str, typer.Option("--template_url", "-u", help="The URL to the plugins cookiecutter template.")] = DEFAULT_TEMPLATE_URL,
-    template_type: Annotated[str, typer.Option("--template_type", "-t", help="Plugin template type: native or external.")] = "native",
-    vcs_ref: Annotated[str, typer.Option("--vcs_ref", "-r", help="The version control system tag/branch/commit to use for the template.")] = DEFAULT_VCS_REF,
+    destination: Annotated[
+        Path, typer.Option("--destination", "-d", help="The directory in which to bootstrap the plugin project.")
+    ] = DEFAULT_PROJECT_DIR,
+    template_url: Annotated[
+        str, typer.Option("--template_url", "-u", help="The URL to the plugins cookiecutter template.")
+    ] = DEFAULT_TEMPLATE_URL,
+    template_type: Annotated[
+        str, typer.Option("--template_type", "-t", help="Plugin template type: native or external.")
+    ] = "native",
+    vcs_ref: Annotated[
+        str,
+        typer.Option("--vcs_ref", "-r", help="The version control system tag/branch/commit to use for the template."),
+    ] = DEFAULT_VCS_REF,
     no_input: Annotated[bool, typer.Option("--no_input", help="Use defaults without prompting.")] = False,
     dry_run: Annotated[bool, typer.Option("--dry_run", help="Run but do not make any changes.")] = False,
 ) -> None:
@@ -152,7 +165,12 @@ def bootstrap(
         raise typer.Exit(1)
 
     if dry_run:
-        logger.info("Dry run: would create plugin project at %s from template %s (type=%s)", destination, template_url, template_type)
+        logger.info(
+            "Dry run: would create plugin project at %s from template %s (type=%s)",
+            destination,
+            template_url,
+            template_type,
+        )
         return
 
     try:

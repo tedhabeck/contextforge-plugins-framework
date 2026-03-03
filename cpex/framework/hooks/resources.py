@@ -73,16 +73,16 @@ class ResourcePostFetchPayload(PluginPayload):
         content: The fetched resource content.
 
     Examples:
-        >>> from mcpgateway.common.models import ResourceContent
-        >>> content = ResourceContent(type="resource", id="res-1", uri="file:///data.txt",
+        >>> import types
+        >>> content = types.SimpleNamespace(type="resource", id="res-1", uri="file:///data.txt",
         ...     text="Hello World")
         >>> payload = ResourcePostFetchPayload(uri="file:///data.txt", content=content)
         >>> payload.uri
         'file:///data.txt'
         >>> payload.content.text
         'Hello World'
-        >>> from mcpgateway.common.models import ResourceContent
-    >>> resource_content = ResourceContent(type="resource", id="res-2", uri="test://resource", text="Test data")
+        >>> resource_content = types.SimpleNamespace(type="resource", id="res-2", uri="test://resource",
+        ...     text="Test data")
         >>> p = ResourcePostFetchPayload(uri="test://resource", content=resource_content)
         >>> p.uri
         'test://resource'

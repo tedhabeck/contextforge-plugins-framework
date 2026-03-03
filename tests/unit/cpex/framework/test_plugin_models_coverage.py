@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Coverage tests for mcpgateway.plugins.framework.models — world-writable UDS, gRPC configs, edge cases."""
+"""Coverage tests for cpex.framework.models — world-writable UDS, gRPC configs, edge cases."""
 
 # Standard
 from pathlib import Path, PurePath
@@ -10,8 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 # First-Party
-from mcpgateway.plugins.framework.constants import EXTERNAL_PLUGIN_TYPE
-from mcpgateway.plugins.framework.models import (
+from cpex.framework.constants import EXTERNAL_PLUGIN_TYPE
+from cpex.framework.models import (
     GRPCClientConfig,
     GRPCClientTLSConfig,
     GRPCServerConfig,
@@ -23,8 +23,8 @@ from mcpgateway.plugins.framework.models import (
     PluginConfig,
     UnixSocketClientConfig,
     UnixSocketServerConfig,
+    TransportType,
 )
-from mcpgateway.common.models import TransportType
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -375,7 +375,7 @@ class TestMCPServerConfigValidators:
 
     def test_bool_parsing_via_settings(self, monkeypatch):
         """Bool fields on PluginsSettings handle false values correctly."""
-        from mcpgateway.plugins.framework.settings import PluginsSettings
+        from cpex.framework.settings import PluginsSettings
 
         monkeypatch.setenv("PLUGINS_SERVER_SSL_ENABLED", "false")
         assert PluginsSettings().server_ssl_enabled is False
@@ -411,7 +411,7 @@ class TestMCPClientConfigMoreBranches:
         # Pre-cache plugin settings so the global Path.stat mock does not
         # interfere with pydantic-settings .env file discovery inside the
         # URL validator's deferred settings import.
-        from mcpgateway.plugins.framework.settings import get_settings, get_ssrf_settings  # pylint: disable=import-outside-toplevel
+        from cpex.framework.settings import get_settings, get_ssrf_settings  # pylint: disable=import-outside-toplevel
 
         get_settings()
         get_ssrf_settings()
@@ -524,7 +524,7 @@ class TestFromEnvSettingsIsolation:
         assert config.path == "/tmp/test.sock"
 
     def test_transport_property_ignores_malformed_server_port(self, monkeypatch):
-        from mcpgateway.plugins.framework.settings import settings
+        from cpex.framework.settings import settings
 
         monkeypatch.setenv("PLUGINS_SERVER_PORT", "not_a_number")
         monkeypatch.setenv("PLUGINS_TRANSPORT", "stdio")

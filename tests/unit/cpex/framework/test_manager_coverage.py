@@ -1,30 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Coverage tests for mcpgateway.plugins.framework.manager — invoke_hook_for_plugin, _execute_with_timeout, permissive mode."""
+"""Coverage tests for cpex.framework.manager — invoke_hook_for_plugin, _execute_with_timeout, permissive mode."""
 
 # Standard
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.plugins.framework.base import HookRef, Plugin, PluginRef
-from mcpgateway.plugins.framework.errors import PluginError, PluginViolationError
-from mcpgateway.plugins.framework.manager import PluginExecutor, PluginManager
-from mcpgateway.plugins.framework.models import (
-    Config,
+from cpex.framework.base import HookRef, Plugin, PluginRef
+from cpex.framework.errors import PluginError
+from cpex.framework.manager import PluginExecutor, PluginManager
+from cpex.framework.models import (
     GlobalContext,
-    PluginCondition,
     PluginConfig,
     PluginContext,
     PluginMode,
     PluginPayload,
     PluginResult,
-    PluginSettings,
     PluginViolation,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -125,9 +121,7 @@ class TestInvokeHookForPlugin:
         context = PluginContext(global_context=GlobalContext(request_id="1"))
 
         with pytest.raises(ValueError, match="must be str or dict"):
-            await manager.invoke_hook_for_plugin(
-                "test", "test_hook", 12345, context, payload_as_json=True
-            )
+            await manager.invoke_hook_for_plugin("test", "test_hook", 12345, context, payload_as_json=True)
 
     @pytest.mark.asyncio
     async def test_wrong_payload_type_raises(self):
@@ -141,9 +135,7 @@ class TestInvokeHookForPlugin:
         context = PluginContext(global_context=GlobalContext(request_id="1"))
 
         with pytest.raises(ValueError, match="must be a PluginPayload"):
-            await manager.invoke_hook_for_plugin(
-                "test", "test_hook", "not-a-payload", context, payload_as_json=False
-            )
+            await manager.invoke_hook_for_plugin("test", "test_hook", "not-a-payload", context, payload_as_json=False)
 
     @pytest.mark.asyncio
     async def test_global_context_auto_wrap(self):
@@ -169,7 +161,7 @@ class TestInvokeHookForPlugin:
 class TestExecuteWithTimeout:
     @pytest.mark.asyncio
     async def test_with_trace_id(self):
-        from mcpgateway.plugins.framework.observability import current_trace_id
+        from cpex.framework.observability import current_trace_id
 
         mock_provider = MagicMock()
         mock_provider.start_span.return_value = "span-123"
@@ -207,7 +199,7 @@ class TestExecuteWithTimeout:
 
     @pytest.mark.asyncio
     async def test_observability_provider_failure(self):
-        from mcpgateway.plugins.framework.observability import current_trace_id
+        from cpex.framework.observability import current_trace_id
 
         mock_provider = MagicMock()
         mock_provider.start_span.side_effect = Exception("provider fail")
@@ -229,7 +221,7 @@ class TestExecuteWithTimeout:
     @pytest.mark.asyncio
     async def test_error_path_ends_span_with_error(self):
         """When plugin execution raises, end_span is called with status='error'."""
-        from mcpgateway.plugins.framework.observability import current_trace_id
+        from cpex.framework.observability import current_trace_id
 
         mock_provider = MagicMock()
         mock_provider.start_span.return_value = "span-err"
@@ -259,7 +251,7 @@ class TestExecuteWithTimeout:
     @pytest.mark.asyncio
     async def test_error_path_end_span_also_fails(self):
         """When plugin raises AND end_span also raises, the original error propagates."""
-        from mcpgateway.plugins.framework.observability import current_trace_id
+        from cpex.framework.observability import current_trace_id
 
         mock_provider = MagicMock()
         mock_provider.start_span.return_value = "span-double-err"
@@ -290,7 +282,7 @@ class TestExecuteWithTimeout:
     @pytest.mark.asyncio
     async def test_end_span_failure_on_success_path(self):
         """When end_span raises after successful execution, the result is still returned."""
-        from mcpgateway.plugins.framework.observability import current_trace_id
+        from cpex.framework.observability import current_trace_id
 
         mock_provider = MagicMock()
         mock_provider.start_span.return_value = "span-ok"
@@ -376,7 +368,7 @@ class TestCrossTypeUnexpectedPayload:
 
     @pytest.mark.asyncio
     async def test_unexpected_type_ignored_with_policy(self):
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.policies import HookPayloadPolicy
 
         class WeirdResultPlugin(Plugin):
             async def test_hook(self, payload, context):
@@ -395,7 +387,10 @@ class TestCrossTypeUnexpectedPayload:
         global_ctx = GlobalContext(request_id="1")
 
         result, _ = await executor.execute(
-            [hook_ref], payload, global_ctx, hook_type="test_hook",
+            [hook_ref],
+            payload,
+            global_ctx,
+            hook_type="test_hook",
         )
         # The unexpected type should be ignored — modified_payload stays None
         assert result.modified_payload is None
@@ -416,7 +411,7 @@ class TestBorgHookPoliciesInjection:
     def test_second_instantiation_injects_policies(self):
         """When the first PluginManager had no policies but a second one
         provides them, the policies are injected into the shared executor."""
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.policies import HookPayloadPolicy
 
         # First instantiation — no policies
         pm1 = PluginManager()
@@ -434,10 +429,10 @@ class TestBorgHookPoliciesInjection:
     def test_second_instantiation_updates_timeout(self):
         """When the second instantiation provides a non-default timeout,
         it updates the shared executor's timeout."""
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.policies import HookPayloadPolicy
 
         pm1 = PluginManager()
-        original_timeout = pm1._executor.timeout
+        _ = pm1._executor.timeout
 
         policies = {"test_hook": HookPayloadPolicy(writable_fields=frozenset())}
         pm2 = PluginManager(timeout=120, hook_policies=policies)
@@ -447,12 +442,12 @@ class TestBorgHookPoliciesInjection:
     def test_second_instantiation_warns_on_different_policies(self, caplog):
         """When policies are already set and a different set is provided,
         a warning is logged and the new policies are ignored."""
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.policies import HookPayloadPolicy
 
         policies_a = {"hook_a": HookPayloadPolicy(writable_fields=frozenset({"x"}))}
         policies_b = {"hook_b": HookPayloadPolicy(writable_fields=frozenset({"y"}))}
 
-        pm1 = PluginManager(hook_policies=policies_a)
+        _ = PluginManager(hook_policies=policies_a)
         pm2 = PluginManager(hook_policies=policies_b)
 
         assert "already set" in caplog.text
@@ -462,7 +457,7 @@ class TestBorgHookPoliciesInjection:
     def test_second_instantiation_injects_observability(self):
         """When observability is not yet set and a second instantiation
         provides it, the executor is updated."""
-        from mcpgateway.plugins.framework.hooks.policies import HookPayloadPolicy
+        from cpex.framework.hooks.policies import HookPayloadPolicy
 
         pm1 = PluginManager()
         assert pm1._executor.observability is None

@@ -9,7 +9,7 @@ Module that contains plugin MCP server code to serve external plugins.
 Examples:
     Create an external plugin server with a configuration file:
 
-    >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     >>> server is not None
     True
     >>> isinstance(server._config_path, str)
@@ -17,7 +17,7 @@ Examples:
 
     Get server configuration with defaults:
 
-    >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     >>> config = server.get_server_config()
     >>> config.host == '127.0.0.1'
     True
@@ -26,7 +26,7 @@ Examples:
 
     Verify plugin manager is initialized:
 
-    >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     >>> server._plugin_manager is not None
     True
     >>> server._config is not None
@@ -34,15 +34,15 @@ Examples:
 
     Multiple servers can be created:
 
-    >>> server1 = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
-    >>> server2 = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_multiple_plugins_filter.yaml")
+    >>> server1 = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
+    >>> server2 = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_multiple_plugins_filter.yaml")
     >>> server1._config_path != server2._config_path
     True
 
     Configuration is loaded from file:
 
     >>> import asyncio
-    >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     >>> plugins = asyncio.run(server.get_plugin_configs())
     >>> isinstance(plugins, list)
     True
@@ -51,7 +51,7 @@ Examples:
 
     Server configuration defaults are sensible:
 
-    >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+    >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     >>> config = server.get_server_config()
     >>> isinstance(config.host, str)
     True
@@ -93,11 +93,15 @@ class ExternalPluginServer:
                         If set, this attribute overrides the value in PLUGINS_CONFIG_PATH.
 
         Examples:
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> server is not None
             True
         """
-        self._config_path = config_path or get_config_path_settings().config_path or os.path.join(".", "resources", "plugins", "config.yaml")
+        self._config_path = (
+            config_path
+            or get_config_path_settings().config_path
+            or os.path.join(".", "resources", "plugins", "config.yaml")
+        )
         self._config = ConfigLoader.load_config(self._config_path, use_jinja=False)
         self._plugin_manager = PluginManager(self._config_path)
 
@@ -109,14 +113,14 @@ class ExternalPluginServer:
 
         Examples:
             >>> import asyncio
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> plugins = asyncio.run(server.get_plugin_configs())
             >>> len(plugins) > 0
             True
 
             Returns empty list when no plugins configured:
 
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> server._config.plugins = None
             >>> plugins = asyncio.run(server.get_plugin_configs())
             >>> plugins
@@ -124,7 +128,7 @@ class ExternalPluginServer:
 
             Each plugin config is a dictionary:
 
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> plugins = asyncio.run(server.get_plugin_configs())
             >>> all(isinstance(p, dict) for p in plugins)
             True
@@ -146,7 +150,7 @@ class ExternalPluginServer:
 
         Examples:
             >>> import asyncio
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> c = asyncio.run(server.get_plugin_config(name = "ReplaceBadWordsPlugin"))
             >>> c is not None
             True
@@ -155,14 +159,14 @@ class ExternalPluginServer:
 
             Returns None when plugin not found:
 
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> c = asyncio.run(server.get_plugin_config(name="NonExistentPlugin"))
             >>> c is None
             True
 
             Case-insensitive plugin name lookup:
 
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> c1 = asyncio.run(server.get_plugin_config(name="ReplaceBadWordsPlugin"))
             >>> c2 = asyncio.run(server.get_plugin_config(name="replacebadwordsplugin"))
             >>> c1 == c2
@@ -174,7 +178,9 @@ class ExternalPluginServer:
                     return plug.model_dump()
         return None
 
-    async def invoke_hook(self, hook_type: str, plugin_name: str, payload: Dict[str, Any], context: Dict[str, Any] | PluginContext) -> dict:
+    async def invoke_hook(
+        self, hook_type: str, plugin_name: str, payload: Dict[str, Any], context: Dict[str, Any] | PluginContext
+    ) -> dict:
         """Invoke a plugin hook.
 
         Args:
@@ -196,7 +202,7 @@ class ExternalPluginServer:
             >>> os.environ["PYTHONPATH"] = "."
             >>> from cpex.framework import GlobalContext, Plugin, PromptHookType, PromptPrehookPayload, PluginContext, PromptPrehookResult, PluginManager
             >>> PluginManager.reset()
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> payload = PromptPrehookPayload(prompt_id="123", name="test_prompt", args={"user": "This is a crap app"})
             >>> context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
             >>> initialized = asyncio.run(server.initialize())
@@ -216,7 +222,9 @@ class ExternalPluginServer:
             context_is_pydantic = isinstance(context, PluginContext)
             _context = context if context_is_pydantic else PluginContext.model_validate(context)
 
-            result = await self._plugin_manager.invoke_hook_for_plugin(plugin_name, hook_type, payload, _context, payload_as_json=True)
+            result = await self._plugin_manager.invoke_hook_for_plugin(
+                plugin_name, hook_type, payload, _context, payload_as_json=True
+            )
 
             result_payload[RESULT] = result.model_dump()
             if not _context.is_empty():
@@ -239,7 +247,7 @@ class ExternalPluginServer:
 
         Examples:
             >>> import asyncio
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> result = asyncio.run(server.initialize())
             >>> result
             True
@@ -253,7 +261,7 @@ class ExternalPluginServer:
 
         Examples:
             >>> import asyncio
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> asyncio.run(server.initialize())
             True
             >>> asyncio.run(server.shutdown())
@@ -268,7 +276,7 @@ class ExternalPluginServer:
             A server configuration including host, port, and TLS information.
 
         Examples:
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> config = server.get_server_config()
             >>> isinstance(config, MCPServerConfig)
             True
@@ -286,7 +294,7 @@ class ExternalPluginServer:
             The gRPC server configuration from the config file, or None if not defined.
 
         Examples:
-            >>> server = ExternalPluginServer(config_path="./tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml")
+            >>> server = ExternalPluginServer(config_path="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
             >>> config = server.get_grpc_server_config()
             >>> config is None or isinstance(config, GRPCServerConfig)
             True

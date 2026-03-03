@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/unix/test_client.py
+"""Location: ./tests/unit/cpex/framework/external/unix/test_client.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -15,11 +15,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Third-Party
 import pytest
 
+# First-Party
+from cpex.framework import ToolPreInvokePayload
+from cpex.framework.errors import PluginError
+from cpex.framework.models import (
+    GlobalContext,
+    PluginConfig,
+    PluginContext,
+    PluginErrorModel,
+    UnixSocketClientConfig,
+)
+
 # Check if grpc/protobuf is available
 try:
     from google.protobuf import json_format
     from google.protobuf.struct_pb2 import Struct
-    from mcpgateway.plugins.framework.external.unix.client import UnixSocketExternalPlugin
+    from cpex.framework.external.unix.client import UnixSocketExternalPlugin
 
     HAS_GRPC = True
 except ImportError:
@@ -28,17 +39,6 @@ except ImportError:
     Struct = None  # type: ignore
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed (required for protobuf)")
-
-# First-Party
-from mcpgateway.plugins.framework import ToolPreInvokePayload
-from mcpgateway.plugins.framework.errors import PluginError
-from mcpgateway.plugins.framework.models import (
-    GlobalContext,
-    PluginConfig,
-    PluginContext,
-    PluginErrorModel,
-    UnixSocketClientConfig,
-)
 
 
 @pytest.fixture
@@ -140,7 +140,7 @@ class TestUnixSocketExternalPluginInitialize:
         mock_writer.is_closing.return_value = False
 
         # Mock the config response
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         config_response = plugin_service_pb2.GetPluginConfigResponse()
         config_response.found = True
@@ -148,11 +148,11 @@ class TestUnixSocketExternalPluginInitialize:
         with patch("asyncio.open_unix_connection", return_value=(mock_reader, mock_writer)) as mock_connect:
             with patch.object(plugin, "_writer", mock_writer):
                 with patch(
-                    "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+                    "cpex.framework.external.unix.client.write_message_async",
                     new_callable=AsyncMock,
                 ):
                     with patch(
-                        "mcpgateway.plugins.framework.external.unix.client.read_message",
+                        "cpex.framework.external.unix.client.read_message",
                         new_callable=AsyncMock,
                         return_value=config_response.SerializeToString(),
                     ):
@@ -187,7 +187,7 @@ class TestUnixSocketExternalPluginInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_success(self, initialized_plugin):
         """Test successful hook invocation."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Create mock response
         response = plugin_service_pb2.InvokeHookResponse()
@@ -196,11 +196,11 @@ class TestUnixSocketExternalPluginInvokeHook:
         response.result.CopyFrom(result_struct)
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -227,7 +227,7 @@ class TestUnixSocketExternalPluginInvokeHook:
     @pytest.mark.asyncio
     async def test_invoke_hook_error_response(self, initialized_plugin):
         """Test invoke_hook handles error response from server."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Create error response
         response = plugin_service_pb2.InvokeHookResponse()
@@ -236,11 +236,11 @@ class TestUnixSocketExternalPluginInvokeHook:
         response.error.code = "PROCESSING_ERROR"
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -254,11 +254,11 @@ class TestUnixSocketExternalPluginInvokeHook:
     async def test_invoke_hook_timeout(self, initialized_plugin):
         """Test invoke_hook handles timeout."""
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 side_effect=asyncio.TimeoutError(),
             ):
@@ -377,7 +377,7 @@ class TestUnixSocketExternalPluginSendRequest:
     @pytest.mark.asyncio
     async def test_send_request_connection_error_retry(self, mock_plugin_config):
         """Test _send_request retries on connection error."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         plugin = UnixSocketExternalPlugin(mock_plugin_config)
         plugin._connected = False
@@ -387,7 +387,12 @@ class TestUnixSocketExternalPluginSendRequest:
         request.hook_type = "tool_pre_invoke"
         request.plugin_name = "TestPlugin"
 
-        with patch.object(plugin, "_reconnect", new_callable=AsyncMock, side_effect=PluginError(error=PluginErrorModel(message="Failed", plugin_name="test"))):
+        with patch.object(
+            plugin,
+            "_reconnect",
+            new_callable=AsyncMock,
+            side_effect=PluginError(error=PluginErrorModel(message="Failed", plugin_name="test")),
+        ):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with pytest.raises(PluginError):
                     await plugin._send_request(request)
@@ -395,7 +400,7 @@ class TestUnixSocketExternalPluginSendRequest:
     @pytest.mark.asyncio
     async def test_send_request_os_error_retries(self, connected_plugin):
         """Test _send_request retries on OSError during write."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         request = plugin_service_pb2.InvokeHookRequest()
         request.hook_type = "tool_pre_invoke"
@@ -414,7 +419,7 @@ class TestUnixSocketExternalPluginSendRequest:
         mock_writer.is_closing.return_value = False
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             side_effect=failing_write,
         ):
             with patch("asyncio.sleep", new_callable=AsyncMock):
@@ -445,7 +450,7 @@ class TestUnixSocketExternalPluginInitializeEdgeCases:
     async def test_initialize_config_not_found(self, mock_plugin_config):
         """Test initialize continues when remote plugin config not found."""
         plugin = UnixSocketExternalPlugin(mock_plugin_config)
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         mock_reader = AsyncMock()
         mock_writer = MagicMock()
@@ -457,11 +462,11 @@ class TestUnixSocketExternalPluginInitializeEdgeCases:
 
         with patch("asyncio.open_unix_connection", return_value=(mock_reader, mock_writer)):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+                "cpex.framework.external.unix.client.write_message_async",
                 new_callable=AsyncMock,
             ):
                 with patch(
-                    "mcpgateway.plugins.framework.external.unix.client.read_message",
+                    "cpex.framework.external.unix.client.read_message",
                     new_callable=AsyncMock,
                     return_value=config_response.SerializeToString(),
                 ):
@@ -480,12 +485,12 @@ class TestUnixSocketExternalPluginInitializeEdgeCases:
 
         with patch("asyncio.open_unix_connection", return_value=(mock_reader, mock_writer)):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+                "cpex.framework.external.unix.client.write_message_async",
                 new_callable=AsyncMock,
                 side_effect=[None, Exception("Write failed")],
             ):
                 with patch(
-                    "mcpgateway.plugins.framework.external.unix.client.read_message",
+                    "cpex.framework.external.unix.client.read_message",
                     new_callable=AsyncMock,
                     side_effect=Exception("Read failed"),
                 ):
@@ -511,7 +516,7 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
     @pytest.mark.asyncio
     async def test_invoke_hook_with_dict_payload(self, initialized_plugin):
         """Test invoke_hook with dict payload (not pydantic model)."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Create success response
         response = plugin_service_pb2.InvokeHookResponse()
@@ -520,11 +525,11 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
         response.result.CopyFrom(result_struct)
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -539,7 +544,7 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
     @pytest.mark.asyncio
     async def test_invoke_hook_with_context_update(self, initialized_plugin):
         """Test invoke_hook updates context from response."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Create response with context update
         response = plugin_service_pb2.InvokeHookResponse()
@@ -549,15 +554,16 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
 
         # Add context with state
         from google.protobuf import json_format as jf
+
         jf.ParseDict({"updated_key": "updated_value"}, response.context.state)
         response.context.global_context.request_id = "req-1"
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -567,26 +573,30 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
                 result = await initialized_plugin.invoke_hook("tool_pre_invoke", payload, context)
                 assert result.continue_processing is True
                 # Context should be updated
-                assert context.state.get("updatedKey") == "updated_value" or context.state.get("updated_key") == "updated_value"
+                assert (
+                    context.state.get("updatedKey") == "updated_value"
+                    or context.state.get("updated_key") == "updated_value"
+                )
 
     @pytest.mark.asyncio
     async def test_invoke_hook_error_with_details(self, initialized_plugin):
         """Test invoke_hook handles error response with details."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         response = plugin_service_pb2.InvokeHookResponse()
         response.error.message = "Error with details"
         response.error.plugin_name = "TestPlugin"
         response.error.code = "ERR"
         from google.protobuf import json_format as jf
+
         jf.ParseDict({"extra": "info"}, response.error.details)
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -600,17 +610,17 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
     @pytest.mark.asyncio
     async def test_invoke_hook_invalid_response(self, initialized_plugin):
         """Test invoke_hook handles response without result or error."""
-        from mcpgateway.plugins.framework.external.grpc.proto import plugin_service_pb2
+        from cpex.framework.external.grpc.proto import plugin_service_pb2
 
         # Empty response (no result, no error)
         response = plugin_service_pb2.InvokeHookResponse()
 
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
         ):
             with patch(
-                "mcpgateway.plugins.framework.external.unix.client.read_message",
+                "cpex.framework.external.unix.client.read_message",
                 new_callable=AsyncMock,
                 return_value=response.SerializeToString(),
             ):
@@ -624,7 +634,7 @@ class TestUnixSocketExternalPluginInvokeHookEdgeCases:
     async def test_invoke_hook_generic_exception(self, initialized_plugin):
         """Test invoke_hook wraps generic exceptions in PluginError."""
         with patch(
-            "mcpgateway.plugins.framework.external.unix.client.write_message_async",
+            "cpex.framework.external.unix.client.write_message_async",
             new_callable=AsyncMock,
             side_effect=ValueError("Unexpected serialization error"),
         ):

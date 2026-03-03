@@ -6,7 +6,7 @@
 
 syntax = "proto3";
 
-package mcpgateway.plugins;
+package cpex;
 
 import "google/protobuf/struct.proto";
 

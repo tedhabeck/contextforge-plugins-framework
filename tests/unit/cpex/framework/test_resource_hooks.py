@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/test_resource_hooks.py
+"""Location: ./tests/unit/cpex/framework/test_resource_hooks.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Mihai Criveti
@@ -9,16 +9,16 @@ Tests for resource hook functionality in the plugin framework.
 
 # Standard
 from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
 
 # First-Party
-from mcpgateway.common.models import ResourceContent
-from mcpgateway.plugins.framework.base import PluginRef
+from cpex.framework.base import PluginRef
 
 # Registry is imported for mocking
-from mcpgateway.plugins.framework import (
+from cpex.framework import (
     GlobalContext,
     PluginCondition,
     PluginConfig,
@@ -47,7 +47,7 @@ class TestResourceHooks:
 
     def test_resource_post_fetch_payload(self):
         """Test ResourcePostFetchPayload creation and attributes."""
-        content = ResourceContent(type="resource", id="123",uri="file:///test.txt", text="Test content")
+        content = SimpleNamespace(type="resource", id="123", uri="file:///test.txt", text="Test content")
         payload = ResourcePostFetchPayload(uri="file:///test.txt", content=content)
         assert payload.uri == "file:///test.txt"
         assert payload.content == content
@@ -85,7 +85,7 @@ class TestResourceHooks:
             tags=["test"],
         )
         plugin = Plugin(config)
-        content = ResourceContent(type="resource",  id="123",uri="file:///test.txt", text="Test content")
+        content = SimpleNamespace(type="resource", id="123", uri="file:///test.txt", text="Test content")
         payload = ResourcePostFetchPayload(uri="file:///test.txt", content=content)
         context = PluginContext(global_context=GlobalContext(request_id="test-123"))
 
@@ -137,7 +137,7 @@ class TestResourceHooks:
             async def resource_post_fetch(self, payload, context):
                 # Modify content to redact sensitive data
                 modified_text = payload.content.text.replace("password: secret123", "password: [REDACTED]")
-                modified_content = ResourceContent(
+                modified_content = SimpleNamespace(
                     type=payload.content.type,
                     id=payload.content.id,
                     uri=payload.content.uri,
@@ -162,9 +162,9 @@ class TestResourceHooks:
             tags=["filter"],
         )
         plugin = ContentFilterPlugin(config)
-        content = ResourceContent(
+        content = SimpleNamespace(
             type="resource",
-             id="123",
+            id="123",
             uri="test://config",
             text="Database config:\npassword: secret123\nport: 5432",
         )
@@ -225,7 +225,7 @@ class TestResourceHookIntegration:
         """Clear the PluginManager shared state before and after each test."""
         # Clear before test
         # First-Party
-        from mcpgateway.plugins.framework.manager import PluginManager
+        from cpex.framework.manager import PluginManager
 
         PluginManager._PluginManager__shared_state.clear()
         yield
@@ -235,8 +235,8 @@ class TestResourceHookIntegration:
     @pytest.mark.asyncio
     async def test_manager_resource_pre_fetch(self):
         """Test plugin manager resource_pre_fetch execution."""
-        with patch("mcpgateway.plugins.framework.manager.PluginInstanceRegistry") as MockRegistry:
-            with patch("mcpgateway.plugins.framework.loader.config.ConfigLoader.load_config") as MockConfig:
+        with patch("cpex.framework.manager.PluginInstanceRegistry") as MockRegistry:
+            with patch("cpex.framework.loader.config.ConfigLoader.load_config") as MockConfig:
                 # Create a proper mock plugin with all required attributes
                 mock_plugin_obj = MagicMock()
                 mock_plugin_obj.name = "test_plugin"
@@ -274,16 +274,20 @@ class TestResourceHookIntegration:
                 payload = ResourcePreFetchPayload(uri="test://resource", metadata={})
                 global_context = GlobalContext(request_id="test-123")
 
-                result, contexts = await manager.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, payload, global_context)
+                result, contexts = await manager.invoke_hook(
+                    ResourceHookType.RESOURCE_PRE_FETCH, payload, global_context
+                )
 
                 assert result.continue_processing is True
-                MockRegistry.return_value.get_hook_refs_for_hook.assert_called_with(hook_type=ResourceHookType.RESOURCE_PRE_FETCH)
+                MockRegistry.return_value.get_hook_refs_for_hook.assert_called_with(
+                    hook_type=ResourceHookType.RESOURCE_PRE_FETCH
+                )
 
     @pytest.mark.asyncio
     async def test_manager_resource_post_fetch(self):
         """Test plugin manager resource_post_fetch execution."""
         # First-Party
-        from mcpgateway.plugins.framework.base import HookRef
+        from cpex.framework.base import HookRef
 
         class TestResourcePlugin(Plugin):
             async def resource_post_fetch(self, payload, context):
@@ -306,15 +310,17 @@ class TestResourceHookIntegration:
         plugin_ref = PluginRef(plugin)
         hook_ref = HookRef(ResourceHookType.RESOURCE_POST_FETCH, plugin_ref)
 
-        manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+        manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
         await manager.initialize()
 
         with patch.object(manager._registry, "get_hook_refs_for_hook", return_value=[hook_ref]):
-            content = ResourceContent(type="resource", id="123", uri="test://resource", text="Test")
+            content = SimpleNamespace(type="resource", id="123", uri="test://resource", text="Test")
             payload = ResourcePostFetchPayload(uri="test://resource", content=content)
             global_context = GlobalContext(request_id="test-123")
 
-            result, contexts = await manager.invoke_hook(ResourceHookType.RESOURCE_POST_FETCH, payload, global_context, {})
+            result, contexts = await manager.invoke_hook(
+                ResourceHookType.RESOURCE_POST_FETCH, payload, global_context, {}
+            )
 
             assert result.continue_processing is True
             manager._registry.get_hook_refs_for_hook.assert_called_with(hook_type=ResourceHookType.RESOURCE_POST_FETCH)
@@ -379,7 +385,7 @@ class TestResourceHookIntegration:
     async def test_resource_hook_error_handling(self):
         """Test resource hook error handling."""
         # First-Party
-        from mcpgateway.plugins.framework.base import HookRef
+        from cpex.framework.base import HookRef
 
         class ErrorPlugin(Plugin):
             async def resource_pre_fetch(self, payload, context):
@@ -399,7 +405,7 @@ class TestResourceHookIntegration:
         plugin_ref = PluginRef(plugin)
         hook_ref = HookRef(ResourceHookType.RESOURCE_PRE_FETCH, plugin_ref)
 
-        manager = PluginManager("./tests/unit/mcpgateway/plugins/fixtures/configs/valid_no_plugin.yaml")
+        manager = PluginManager("./tests/unit/cpex/fixtures/configs/valid_no_plugin.yaml")
         await manager.initialize()
 
         payload = ResourcePreFetchPayload(uri="test://resource", metadata={})
@@ -414,7 +420,9 @@ class TestResourceHookIntegration:
         config.mode = PluginMode.ENFORCE
         with patch.object(manager._registry, "get_hook_refs_for_hook", return_value=[hook_ref]):
             with pytest.raises(PluginError):
-                result, contexts = await manager.invoke_hook(ResourceHookType.RESOURCE_PRE_FETCH, payload, global_context)
+                result, contexts = await manager.invoke_hook(
+                    ResourceHookType.RESOURCE_PRE_FETCH, payload, global_context
+                )
 
         await manager.shutdown()
 

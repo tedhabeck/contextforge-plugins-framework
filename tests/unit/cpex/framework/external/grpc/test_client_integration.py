@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Location: ./tests/unit/mcpgateway/plugins/framework/external/grpc/test_client_integration.py
+"""Location: ./tests/unit/cpex/framework/external/grpc/test_client_integration.py
 Copyright 2025
 SPDX-License-Identifier: Apache-2.0
 Authors: Teryl Taylor
@@ -15,9 +15,22 @@ import socket
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 # Third-Party
 import pytest
+
+# First-Party
+from cpex.framework import (
+    ConfigLoader,
+    GlobalContext,
+    PluginContext,
+    PluginLoader,
+    PluginManager,
+    PromptHookType,
+    PromptPosthookPayload,
+    PromptPrehookPayload,
+)
 
 # Check if grpc is available
 try:
@@ -28,22 +41,6 @@ except ImportError:
     HAS_GRPC = False
 
 pytestmark = pytest.mark.skipif(not HAS_GRPC, reason="grpc not installed")
-
-# First-Party
-from mcpgateway.common.models import Message, PromptResult, Role, TextContent
-from mcpgateway.plugins.framework import (
-    ConfigLoader,
-    GlobalContext,
-    PluginContext,
-    PluginLoader,
-    PluginManager,
-    PromptHookType,
-    PromptPosthookPayload,
-    PromptPrehookPayload,
-    ToolHookType,
-    ToolPreInvokePayload,
-    ToolPostInvokePayload,
-)
 
 
 def _get_free_port() -> int:
@@ -75,7 +72,7 @@ def grpc_server_proc():
     """Start a gRPC plugin server subprocess."""
     current_env = os.environ.copy()
     port = _get_free_port()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "grpc"
     current_env["PLUGINS_GRPC_SERVER_HOST"] = "127.0.0.1"
@@ -83,7 +80,7 @@ def grpc_server_proc():
 
     try:
         with subprocess.Popen(
-            [sys.executable, "mcpgateway/plugins/framework/external/grpc/server/runtime.py"],
+            [sys.executable, "cpex/framework/external/grpc/server/runtime.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=current_env,
@@ -103,7 +100,7 @@ async def test_grpc_client_invoke_hook(grpc_server_proc):
     server_proc, port = grpc_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_grpc_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_grpc_external_plugin.yaml")
     config.plugins[0].grpc.target = f"127.0.0.1:{port}"
 
     loader = PluginLoader()
@@ -132,7 +129,7 @@ async def test_grpc_client_post_hook(grpc_server_proc):
     server_proc, port = grpc_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_grpc_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_grpc_external_plugin.yaml")
     config.plugins[0].grpc.target = f"127.0.0.1:{port}"
 
     loader = PluginLoader()
@@ -141,8 +138,8 @@ async def test_grpc_client_post_hook(grpc_server_proc):
         context = PluginContext(global_context=GlobalContext(request_id="1", server_id="2"))
 
         # Test prompt_post_fetch hook
-        message = Message(content=TextContent(type="text", text="What the crud?"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What the crud?"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         payload_result = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
         result = await plugin.invoke_hook(PromptHookType.PROMPT_POST_FETCH, payload_result, context)
@@ -161,7 +158,7 @@ async def test_grpc_client_context_propagation(grpc_server_proc):
     server_proc, port = grpc_server_proc
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_grpc_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_grpc_external_plugin.yaml")
     config.plugins[0].grpc.target = f"127.0.0.1:{port}"
 
     loader = PluginLoader()
@@ -196,14 +193,14 @@ def grpc_server_proc_uds(tmp_path):
     uds_path = f"/tmp/grpc-test-{short_id}.sock"
 
     current_env = os.environ.copy()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "grpc"
     current_env["PLUGINS_GRPC_SERVER_UDS"] = uds_path
 
     try:
         with subprocess.Popen(
-            [sys.executable, "mcpgateway/plugins/framework/external/grpc/server/runtime.py"],
+            [sys.executable, "cpex/framework/external/grpc/server/runtime.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=current_env,
@@ -248,7 +245,7 @@ async def test_grpc_client_over_uds(grpc_server_proc_uds):
     server_proc, uds_path = grpc_server_proc_uds
     assert not server_proc.poll(), "Server failed to start"
 
-    config = ConfigLoader.load_config("tests/unit/mcpgateway/plugins/fixtures/configs/valid_grpc_external_plugin.yaml")
+    config = ConfigLoader.load_config("tests/unit/cpex/fixtures/configs/valid_grpc_external_plugin.yaml")
     # Switch from TCP to UDS
     config.plugins[0].grpc.target = None
     config.plugins[0].grpc.uds = uds_path
@@ -270,18 +267,19 @@ async def test_grpc_client_over_uds(grpc_server_proc_uds):
 # PluginManager Integration Tests
 # =============================================================================
 
+
 @pytest.fixture
 def grpc_server_proc_for_manager(tmp_path):
     """Start a gRPC plugin server and return a matching PluginManager config file."""
     current_env = os.environ.copy()
     port = _get_free_port()
-    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/mcpgateway/plugins/fixtures/configs/valid_single_plugin.yaml"
+    current_env["PLUGINS_CONFIG_PATH"] = "tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml"
     current_env["PYTHONPATH"] = "."
     current_env["PLUGINS_TRANSPORT"] = "grpc"
     current_env["PLUGINS_GRPC_SERVER_HOST"] = "127.0.0.1"
     current_env["PLUGINS_GRPC_SERVER_PORT"] = str(port)
 
-    template_config = Path("tests/unit/mcpgateway/plugins/fixtures/configs/valid_grpc_external_plugin_manager.yaml")
+    template_config = Path("tests/unit/cpex/fixtures/configs/valid_grpc_external_plugin_manager.yaml")
     dynamic_config = tmp_path / "valid_grpc_external_plugin_manager.dynamic.yaml"
     dynamic_config.write_text(
         template_config.read_text(encoding="utf-8").replace("127.0.0.1:50151", f"127.0.0.1:{port}"),
@@ -290,7 +288,7 @@ def grpc_server_proc_for_manager(tmp_path):
 
     try:
         with subprocess.Popen(
-            [sys.executable, "mcpgateway/plugins/framework/external/grpc/server/runtime.py"],
+            [sys.executable, "cpex/framework/external/grpc/server/runtime.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=current_env,
@@ -363,8 +361,8 @@ async def test_grpc_plugin_manager_multiple_hooks(grpc_server_proc_for_manager):
         assert result.modified_payload.args["user"] == "This is yikes!"
 
         # Test prompt_post_fetch
-        message = Message(content=TextContent(type="text", text="What crud!"), role=Role.USER)
-        prompt_result = PromptResult(messages=[message])
+        message = SimpleNamespace(content=SimpleNamespace(type="text", text="What crud!"), role="user")
+        prompt_result = SimpleNamespace(messages=[message])
         post_payload = PromptPosthookPayload(prompt_id="test_prompt", result=prompt_result)
 
         result, _ = await plugin_manager.invoke_hook(
