@@ -11,6 +11,9 @@ This module implements the plugin loader.
 # Standard
 import logging
 from typing import cast, Type
+import os
+from pathlib import Path
+import sys
 
 # First-Party
 from cpex.framework.base import Plugin
@@ -21,6 +24,13 @@ from cpex.framework.utils import import_module, parse_class_name
 
 # Use standard logging to avoid circular imports (plugins -> services -> plugins)
 logger = logging.getLogger(__name__)
+
+# Allowed plugin dirs to use as plugin search paths
+ALLOWED_PLUGIN_DIRS = {
+    os.path.abspath("/var/lib/cpex/plugins"),
+    os.path.abspath("/private/var/lib/cpex/plugins"),
+    os.getcwd(),
+}
 
 
 class PluginLoader:
@@ -141,6 +151,17 @@ class PluginLoader:
             await plugin.initialize()
             return plugin
         return None
+
+    def append_to_search_path(self, plugin_dirs: list[str]) -> None:
+        """Safe append plugin dir paths to search path.
+
+        Args:
+            plugin_dirs: paths to append to search path
+        """
+        for plugin_dir in plugin_dirs:
+            resolved = str(Path(plugin_dir).resolve())
+            if resolved not in sys.path and resolved.startswith(tuple(ALLOWED_PLUGIN_DIRS)):
+                sys.path.append(resolved)
 
     async def shutdown(self) -> None:
         """Shutdown and cleanup plugin loader.
