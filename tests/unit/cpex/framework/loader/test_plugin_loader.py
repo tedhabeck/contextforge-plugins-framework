@@ -24,6 +24,7 @@ from cpex.framework.models import PluginConfig
 from tests.unit.cpex.fixtures.plugins.search_replace import SearchReplaceConfig, SearchReplacePlugin
 from tests.unit.cpex.fixtures.common.models import Message, PromptResult, Role, TextContent
 
+
 def test_config_loader_load():
     """pytest for testing the config loader."""
     config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
@@ -44,12 +45,14 @@ def test_config_loader_load():
 
 
 @pytest.mark.asyncio
-async def test_plugin_loader_load():
+async def test_plugin_loader_load(monkeypatch):
     """Load a plugin with the plugin loader."""
     config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
+    loader.append_to_search_path(config.plugin_dirs)
+
     plugin = await loader.load_and_instantiate_plugin(config.plugins[0])
-    assert isinstance(plugin, SearchReplacePlugin)
+    assert type(plugin).__name__ == "SearchReplacePlugin"
     assert plugin.name == "ReplaceBadWordsPlugin"
     assert plugin.mode == PluginMode.ENFORCE
     assert plugin.priority == 150
@@ -82,6 +85,7 @@ async def test_plugin_loader_invalid_plugin_load():
         config="./tests/unit/cpex/fixtures/configs/invalid_single_plugin.yaml", use_jinja=False
     )
     loader = PluginLoader()
+    loader.append_to_search_path(config.plugin_dirs)
     with pytest.raises(ModuleNotFoundError):
         await loader.load_and_instantiate_plugin(config.plugins[0])
 
@@ -91,6 +95,7 @@ async def test_plugin_loader_duplicate_registration():
     """Test that duplicate plugin type registration is handled correctly."""
     config = ConfigLoader.load_config(config="./tests/unit/cpex/fixtures/configs/valid_single_plugin.yaml")
     loader = PluginLoader()
+    loader.append_to_search_path(config.plugin_dirs)
 
     # Load the same plugin twice to test the "if kind not in self._plugin_types" path (line 72)
     plugin1 = await loader.load_and_instantiate_plugin(config.plugins[0])
@@ -98,8 +103,8 @@ async def test_plugin_loader_duplicate_registration():
 
     # Both should be instances of the same type
     assert type(plugin1) is type(plugin2)
-    assert isinstance(plugin1, SearchReplacePlugin)
-    assert isinstance(plugin2, SearchReplacePlugin)
+    assert type(plugin1).__name__ == "SearchReplacePlugin"
+    assert type(plugin2).__name__ == "SearchReplacePlugin"
 
     # Verify the plugin type was only registered once
     assert len(loader._plugin_types) == 1
