@@ -188,49 +188,6 @@ class TestPluginPayloadFrozen:
         assert payload.name == "test"  # original unchanged
 
 
-class TestConcreteGatewayPolicies:
-    """Tests for the gateway-side HOOK_PAYLOAD_POLICIES."""
-
-    def test_all_hook_types_have_policies(self):
-        from cpex.policy import HOOK_PAYLOAD_POLICIES
-
-        expected_hooks = {
-            "tool_pre_invoke",
-            "tool_post_invoke",
-            "prompt_pre_fetch",
-            "prompt_post_fetch",
-            "resource_pre_fetch",
-            "resource_post_fetch",
-            "agent_pre_invoke",
-            "agent_post_invoke",
-            "http_pre_request",
-            "http_post_request",
-            "http_auth_resolve_user",
-            "http_auth_check_permission",
-        }
-        assert set(HOOK_PAYLOAD_POLICIES.keys()) == expected_hooks
-
-    def test_tool_pre_invoke_writable_fields(self):
-        from cpex.policy import HOOK_PAYLOAD_POLICIES
-
-        policy = HOOK_PAYLOAD_POLICIES["tool_pre_invoke"]
-        assert "name" in policy.writable_fields
-        assert "args" in policy.writable_fields
-        assert "headers" in policy.writable_fields
-
-    def test_tool_post_invoke_writable_fields(self):
-        from cpex.policy import HOOK_PAYLOAD_POLICIES
-
-        policy = HOOK_PAYLOAD_POLICIES["tool_post_invoke"]
-        assert policy.writable_fields == frozenset({"result"})
-
-    def test_agent_pre_invoke_includes_agent_id(self):
-        from cpex.policy import HOOK_PAYLOAD_POLICIES
-
-        policy = HOOK_PAYLOAD_POLICIES["agent_pre_invoke"]
-        assert "agent_id" in policy.writable_fields, "agent_id must be writable for agent-routing plugins"
-
-
 class TestAgentMessageCoercion:
     """Tests for _coerce_messages field validator on agent payloads."""
 

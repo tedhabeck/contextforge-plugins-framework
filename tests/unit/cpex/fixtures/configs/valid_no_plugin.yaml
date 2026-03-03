@@ -3,9 +3,7 @@ plugins:
 
 # Plugin directories to scan
 plugin_dirs:
-  - "plugins/native"      # Built-in plugins
-  - "plugins/custom"      # Custom organization plugins
-  - "/etc/mcpgateway/plugins"  # System-wide plugins
+  - "tests/unit/cpex/fixtures"
 
 # Global plugin settings
 plugin_settings:

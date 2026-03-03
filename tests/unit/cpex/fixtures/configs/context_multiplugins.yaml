@@ -1,7 +1,7 @@
 plugins:
   # Self-contained Search Replace Plugin
   - name: "ContextPlugin"
-    kind: "tests.unit.cpex.fixtures.plugins.context.ContextPlugin"
+    kind: "plugins.context.ContextPlugin"
     description: "A context plugin."
     version: "0.1"
     author: "ContextForge Team"
@@ -15,7 +15,7 @@ plugins:
         server_ids: []  # Apply to all servers
         tenant_ids: []  # Apply to all tenants
   - name: "ContextPlugin2"
-    kind: "tests.unit.cpex.fixtures.plugins.context.ContextPlugin2"
+    kind: "plugins.context.ContextPlugin2"
     description: "A context plugin."
     version: "0.1"
     author: "ContextForge Team"
@@ -31,9 +31,7 @@ plugins:
 
 # Plugin directories to scan
 plugin_dirs:
-  - "plugins/native"      # Built-in plugins
-  - "plugins/custom"      # Custom organization plugins
-  - "/etc/mcpgateway/plugins"  # System-wide plugins
+  - "tests/unit/cpex/fixtures"
 
 # Global plugin settings
 plugin_settings:

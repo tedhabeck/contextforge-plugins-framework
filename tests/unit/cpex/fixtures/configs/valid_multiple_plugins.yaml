@@ -1,6 +1,6 @@
 plugins:
   - name: "SynonymsPlugin"
-    kind: "tests.unit.cpex.fixtures.plugins.search_replace.SearchReplacePlugin"
+    kind: "plugins.search_replace.SearchReplacePlugin"
     description: "A plugin for finding and replacing synonyms."
     version: "0.1"
     author: "ContextForge Team"
@@ -21,7 +21,7 @@ plugins:
           replace: sullen
   # Self-contained Search Replace Plugin
   - name: "ReplaceBadWordsPlugin"
-    kind: "tests.unit.cpex.fixtures.plugins.search_replace.SearchReplacePlugin"
+    kind: "plugins.search_replace.SearchReplacePlugin"
     description: "A plugin for finding and replacing words."
     version: "0.1"
     author: "ContextForge Team"
@@ -44,9 +44,7 @@ plugins:
 
 # Plugin directories to scan
 plugin_dirs:
-  - "plugins/native"      # Built-in plugins
-  - "plugins/custom"      # Custom organization plugins
-  - "/etc/mcpgateway/plugins"  # System-wide plugins
+  - "tests/unit/cpex/fixtures"
 
 # Global plugin settings
 plugin_settings:

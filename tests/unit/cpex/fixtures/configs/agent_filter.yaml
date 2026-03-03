@@ -1,6 +1,6 @@
 plugins:
   - name: MessageFilterAgent
-    kind: tests.unit.cpex.fixtures.plugins.agent_plugins.MessageFilterAgentPlugin
+    kind: plugins.agent_plugins.MessageFilterAgentPlugin
     description: An agent plugin that filters blocked words
     version: "1.0.0"
     author: Test Suite
@@ -21,9 +21,7 @@ plugins:
 
 # Plugin directories to scan
 plugin_dirs:
-  - "plugins/native"      # Built-in plugins
-  - "plugins/custom"      # Custom organization plugins
-  - "/etc/mcpgateway/plugins"  # System-wide plugins
+  - "tests/unit/cpex/fixtures"
 
 # Global plugin settings
 plugin_settings:

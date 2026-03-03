@@ -10,8 +10,7 @@ plugins:
 
 # Plugin directories to scan
 plugin_dirs:
-  - "plugins/native"
-  - "plugins/custom"
+  - "tests/unit/cpex/fixtures"
 
 # Global plugin settings
 plugin_settings:
