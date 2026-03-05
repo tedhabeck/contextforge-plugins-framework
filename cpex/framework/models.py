@@ -1556,8 +1556,10 @@ class PluginPackageInfo(BaseModel):
     - `version_constraint`: Semantic version constraints (e.g., ">=1.0.0,<2.0.0")
 
     Examples:
-        >>> PluginPackageInfo(pypi_package="test", git_repository="test", git_branch_tag_commit="test", version_constraint="test")
-        PluginPackageInfo(pypi_package='test', git_repository='test', git_branch_tag_commit='test', version_constraint='test')
+        >>> pkg = PluginPackageInfo(git_repository="https://github.com/user/repo.git",
+            git_branch_tag_commit="v1.0.0",
+            version_constraint=">=1.0.0")
+        >>> pkg2 = PluginPackageInfo(pypi_package="my-package", version_constraint=">=1.0.0")
     """
     pypi_package: Optional[str] = None
     git_repository: Optional[str] = None
