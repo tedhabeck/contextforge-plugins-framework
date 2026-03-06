@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration defaults
 # ---------------------------------------------------------------------------
-DEFAULT_TEMPLATE_URL = "https://github.com/IBM/mcp-context-forge.git"
+LOCAL_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+DEFAULT_TEMPLATE_URL = "https://github.com/contextforge-org/contextforge-plugins-framework.git"
 DEFAULT_AUTHOR_NAME = "<changeme>"
 DEFAULT_AUTHOR_EMAIL = "<changeme>"
 DEFAULT_PROJECT_DIR = Path("./.")
@@ -174,23 +175,33 @@ def bootstrap(
         return
 
     try:
-        if command_exists("git"):
-            output_dir = str(destination.parent) if destination.parent != destination else "."
-            extra_context = {
-                "plugin_slug": destination.name,
-                "author": git_user_name(),
-                "email": git_user_email(),
-            }
+        output_dir = str(destination.parent) if destination.parent != destination else "."
+        extra_context = {
+            "plugin_slug": destination.name,
+            "author": git_user_name(),
+            "email": git_user_email(),
+        }
+
+        # Prefer local bundled templates; fall back to remote URL
+        local_template_dir = LOCAL_TEMPLATES_DIR / template_type
+        if local_template_dir.is_dir():
+            cookiecutter(
+                template=str(local_template_dir),
+                output_dir=output_dir,
+                no_input=no_input,
+                extra_context=extra_context,
+            )
+        elif command_exists("git"):
             cookiecutter(
                 template=template_url,
                 checkout=vcs_ref,
-                directory=f"plugin_templates/{template_type}",
+                directory=f"cpex/templates/{template_type}",
                 output_dir=output_dir,
                 no_input=no_input,
                 extra_context=extra_context,
             )
         else:
-            logger.warning("A git client was not found in the environment to copy remote template.")
+            logger.warning("No local templates found and git is not available to fetch remote template.")
     except Exception:
         logger.exception("An error was caught while copying template.")
 
