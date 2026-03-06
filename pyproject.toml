@@ -35,6 +35,9 @@ dependencies = [
     "packaging>=26.0"
 ]
 
+[project.scripts]
+cpex = "cpex.tools.cli:main"
+
 [project.optional-dependencies]
 
 # dev dependencies
@@ -72,8 +75,28 @@ grpc = [
 
 # CLI dependencies
 cli = [
+    "chardet>=3.0.2,<6",  # pin to range supported by requests (binaryornot pulls chardet 7+)
+    "cookiecutter>=2.6.0",
     "typer>=0.21.2", # docling requires typer < 0.22
 ]
+
+# All extras
+all = ["cpex[grpc,cli]"]
+
+[tool.ruff]
+exclude = [
+    "cpex/templates",
+]
+
+[tool.black]
+exclude = """
+  /(
+    cpex/templates
+  )/
+"""
+
+[tool.isort]
+skip = ["cpex/templates"]
 
 [build-system]
 requires = ["hatchling"]
