@@ -16,6 +16,8 @@ from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, Generic, List, Optional, Self, TypeVar, Union
 
+from packaging.version import InvalidVersion, Version
+
 # Third-Party
 from pydantic import (
     BaseModel,
@@ -27,7 +29,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from packaging.version import Version, InvalidVersion
 
 # First-Party
 from cpex.framework.constants import (
@@ -1737,7 +1738,7 @@ class PluginPackageInfo(BaseModel):
         """
         if not self.pypi_package and not self.git_repository:
             raise ValueError(
-                "At least one installation method must be specified: " "either 'pypi_package' or 'git_repository'"
+                "At least one installation method must be specified: either 'pypi_package' or 'git_repository'"
             )
 
         # If git_branch_tag_commit is specified, git_repository must also be specified
@@ -1835,9 +1836,11 @@ class PluginVersionRegistry(BaseModel):
             # If sorting fails, return the first compatible version
             return compatible_versions[0]
 
+
 class PluginInstallationType(StrEnum):
     """Plugin installation type."""
-    BUNDLED = "bundled"    # Pre-installed with framework
-    PYPI = "pypi"          # Installed from PyPI
-    GIT = "git"            # Installed from Git repo
-    LOCAL = "local"        # Installed from local path
+
+    BUNDLED = "bundled"  # Pre-installed with framework
+    PYPI = "pypi"  # Installed from PyPI
+    GIT = "git"  # Installed from Git repo
+    LOCAL = "local"  # Installed from local path
