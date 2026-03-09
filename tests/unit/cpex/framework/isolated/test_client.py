@@ -8,9 +8,10 @@ Unit tests for IsolatedVenvPlugin.
 """
 
 import asyncio
+import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch, mock_open
 
 import pytest
 
@@ -31,20 +32,6 @@ class TestIsolatedVenvPlugin:
         script_path = "tests/unit/cpex/fixtures/plugins/isolated/test_plugin/requirements.txt"
         requirements_file = tmp_path / "requirements.txt"
 
-        # config_dict = {
-        #     "name": "test_isolated_plugin",
-        #     "kind": "isolated_venv",
-        #     "description": "Test isolated plugin",
-        #     "version": "1.0.0",
-        #     "author": "Test Author",
-        #     "hooks": ["tool_pre_invoke", "tool_post_invoke"],
-        #     "config": {
-        #         "venv_path": str(venv_path),
-        #         "script_path": str(script_path),
-        #         "requirements_file": str(requirements_file),
-        #         "class_name": "test_plugin.TestPlugin",
-        #     },
-        # }
         config_dict = {
             "name": "test_plugin",
             "kind": "isolated_venv",
@@ -366,6 +353,267 @@ class TestIsolatedVenvPlugin:
 
         config_dict = json.loads(safe_config)
         assert "name" in config_dict
+
+    def test_cache_dir_creation(self, plugin):
+        """Test that cache directory is created on plugin initialization."""
+        assert plugin.cache_dir.exists()
+        assert plugin.cache_dir.is_dir()
+        assert plugin.cache_dir.name == "venv_cache"
+
+    def test_compute_requirements_hash_with_file(self, plugin, tmp_path):
+        """Test computing hash of existing requirements file."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\nrequests==2.28.0\n")
+        
+        hash1 = plugin._compute_requirements_hash(str(req_file))
+        assert isinstance(hash1, str)
+        assert len(hash1) == 64  # SHA256 produces 64 hex characters
+        
+        # Same content should produce same hash
+        hash2 = plugin._compute_requirements_hash(str(req_file))
+        assert hash1 == hash2
+
+    def test_compute_requirements_hash_different_content(self, plugin, tmp_path):
+        """Test that different content produces different hashes."""
+        req_file1 = tmp_path / "requirements1.txt"
+        req_file1.write_text("pytest==7.0.0\n")
+        
+        req_file2 = tmp_path / "requirements2.txt"
+        req_file2.write_text("pytest==8.0.0\n")
+        
+        hash1 = plugin._compute_requirements_hash(str(req_file1))
+        hash2 = plugin._compute_requirements_hash(str(req_file2))
+        
+        assert hash1 != hash2
+
+    def test_compute_requirements_hash_nonexistent_file(self, plugin, tmp_path):
+        """Test computing hash of non-existent file."""
+        nonexistent = tmp_path / "nonexistent.txt"
+        hash_result = plugin._compute_requirements_hash(str(nonexistent))
+        
+        # Should return hash of empty content
+        assert isinstance(hash_result, str)
+        assert len(hash_result) == 64
+
+    def test_get_cache_metadata_path(self, plugin, tmp_path):
+        """Test getting cache metadata path."""
+        venv_path = tmp_path / ".venv"
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        
+        assert metadata_path.parent == plugin.cache_dir
+        assert metadata_path.name == ".venv_metadata.json"
+        assert isinstance(metadata_path, Path)
+
+    def test_is_venv_cache_valid_no_venv(self, plugin, tmp_path):
+        """Test cache validation when venv doesn't exist."""
+        venv_path = tmp_path / ".venv"
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        result = plugin._is_venv_cache_valid(str(venv_path), str(req_file))
+        assert result is False
+
+    def test_is_venv_cache_valid_no_metadata(self, plugin, tmp_path):
+        """Test cache validation when metadata file doesn't exist."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        result = plugin._is_venv_cache_valid(str(venv_path), str(req_file))
+        assert result is False
+
+    def test_is_venv_cache_valid_hash_mismatch(self, plugin, tmp_path):
+        """Test cache validation when requirements hash doesn't match."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        # Create metadata with different hash
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        metadata = {
+            "venv_path": str(venv_path),
+            "requirements_file": str(req_file),
+            "requirements_hash": "different_hash",
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        }
+        metadata_path.write_text(json.dumps(metadata))
+        
+        result = plugin._is_venv_cache_valid(str(venv_path), str(req_file))
+        assert result is False
+
+    def test_is_venv_cache_valid_success(self, plugin, tmp_path):
+        """Test successful cache validation."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        # Create metadata with correct hash
+        req_hash = plugin._compute_requirements_hash(str(req_file))
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        metadata = {
+            "venv_path": str(venv_path),
+            "requirements_file": str(req_file),
+            "requirements_hash": req_hash,
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        }
+        metadata_path.write_text(json.dumps(metadata))
+        
+        result = plugin._is_venv_cache_valid(str(venv_path), str(req_file))
+        assert result is True
+
+    def test_is_venv_cache_valid_invalid_json(self, plugin, tmp_path):
+        """Test cache validation with invalid JSON metadata."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        # Create invalid JSON metadata
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        metadata_path.write_text("invalid json {")
+        
+        result = plugin._is_venv_cache_valid(str(venv_path), str(req_file))
+        assert result is False
+
+    def test_save_cache_metadata(self, plugin, tmp_path):
+        """Test saving cache metadata."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        plugin._save_cache_metadata(str(venv_path), str(req_file))
+        
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        assert metadata_path.exists()
+        
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+        
+        assert "venv_path" in metadata
+        assert "requirements_file" in metadata
+        assert "requirements_hash" in metadata
+        assert "python_version" in metadata
+        assert metadata["requirements_hash"] == plugin._compute_requirements_hash(str(req_file))
+
+    def test_save_cache_metadata_nonexistent_requirements(self, plugin, tmp_path):
+        """Test saving cache metadata with non-existent requirements file."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "nonexistent.txt"
+        
+        plugin._save_cache_metadata(str(venv_path), str(req_file))
+        
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        assert metadata_path.exists()
+        
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+        
+        assert metadata["requirements_file"] is None
+
+    @pytest.mark.asyncio
+    @patch("cpex.framework.isolated.client.venv.EnvBuilder")
+    @patch("cpex.framework.isolated.client.shutil.rmtree")
+    async def test_create_venv_with_cache_valid(self, mock_rmtree, mock_builder_class, plugin, tmp_path):
+        """Test create_venv uses cache when valid."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        # Setup valid cache
+        plugin._save_cache_metadata(str(venv_path), str(req_file))
+        
+        await plugin.create_venv(str(venv_path), str(req_file), use_cache=True)
+        
+        # Should not create new venv or remove existing
+        mock_builder_class.assert_not_called()
+        mock_rmtree.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("cpex.framework.isolated.client.venv.EnvBuilder")
+    @patch("cpex.framework.isolated.client.shutil.rmtree")
+    async def test_create_venv_with_cache_invalid(self, mock_rmtree, mock_builder_class, plugin, tmp_path):
+        """Test create_venv recreates when cache invalid."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        # Setup invalid cache (wrong hash)
+        metadata_path = plugin._get_cache_metadata_path(str(venv_path))
+        metadata = {
+            "venv_path": str(venv_path),
+            "requirements_file": str(req_file),
+            "requirements_hash": "wrong_hash",
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        }
+        metadata_path.write_text(json.dumps(metadata))
+        
+        mock_builder = MagicMock()
+        mock_builder_class.return_value = mock_builder
+        
+        await plugin.create_venv(str(venv_path), str(req_file), use_cache=True)
+        
+        # Should remove old venv and create new one
+        mock_rmtree.assert_called_once_with(venv_path)
+        mock_builder_class.assert_called_once()
+        mock_builder.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("cpex.framework.isolated.client.venv.EnvBuilder")
+    async def test_create_venv_without_cache(self, mock_builder_class, plugin, tmp_path):
+        """Test create_venv without using cache."""
+        venv_path = tmp_path / ".venv"
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("pytest==7.0.0\n")
+        
+        mock_builder = MagicMock()
+        mock_builder_class.return_value = mock_builder
+        
+        await plugin.create_venv(str(venv_path), str(req_file), use_cache=False)
+        
+        # Should create new venv
+        mock_builder_class.assert_called_once()
+        mock_builder.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("cpex.framework.isolated.client.VenvProcessCommunicator")
+    @patch.object(IsolatedVenvPlugin, "create_venv")
+    @patch.object(IsolatedVenvPlugin, "_is_venv_cache_valid")
+    async def test_initialize_with_valid_cache(self, mock_cache_valid, mock_create_venv, mock_comm_class, plugin):
+        """Test initialize with valid cache skips requirements installation."""
+        mock_cache_valid.return_value = True
+        mock_create_venv.return_value = None
+        mock_comm = MagicMock()
+        mock_comm_class.return_value = mock_comm
+        
+        await plugin.initialize()
+        
+        # Should not install requirements when cache is valid
+        mock_comm.install_requirements.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("cpex.framework.isolated.client.VenvProcessCommunicator")
+    @patch.object(IsolatedVenvPlugin, "create_venv")
+    @patch.object(IsolatedVenvPlugin, "_is_venv_cache_valid")
+    @patch.object(IsolatedVenvPlugin, "_save_cache_metadata")
+    async def test_initialize_with_invalid_cache(self, mock_save_metadata, mock_cache_valid, mock_create_venv, mock_comm_class, plugin):
+        """Test initialize with invalid cache installs requirements."""
+        mock_cache_valid.return_value = False
+        mock_create_venv.return_value = None
+        mock_comm = MagicMock()
+        mock_comm_class.return_value = mock_comm
+        
+        await plugin.initialize()
+        
+        # Should install requirements when cache is invalid
+        mock_comm.install_requirements.assert_called_once()
+        mock_save_metadata.assert_called_once()
 
 
 # Made with Bob
