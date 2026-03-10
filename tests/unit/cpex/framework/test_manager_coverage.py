@@ -27,7 +27,7 @@ from cpex.framework.models import (
 # ---------------------------------------------------------------------------
 
 
-def _make_config(name="test", priority=100, mode=PluginMode.CONCURRENT, hooks=None):
+def _make_config(name="test", priority=100, mode=PluginMode.TRANSFORM, hooks=None):
     return PluginConfig(
         name=name,
         kind="test.Plugin",
@@ -43,7 +43,7 @@ class ConcretePlugin(Plugin):
         return PluginResult(continue_processing=True)
 
 
-def _make_hook_ref(plugin=None, mode=PluginMode.CONCURRENT):
+def _make_hook_ref(plugin=None, mode=PluginMode.TRANSFORM):
     plugin = plugin or ConcretePlugin(_make_config(mode=mode))
     ref = PluginRef(plugin)
     return HookRef("test_hook", ref)

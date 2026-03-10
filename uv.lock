@@ -519,7 +519,7 @@ toml = [
 
 [[package]]
 name = "cpex"
-version = "0.1.0.dev7"
+version = "0.1.0.dev9"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

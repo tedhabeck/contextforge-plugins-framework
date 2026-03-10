@@ -73,6 +73,8 @@ def apply_policy(
     original: BaseModel,
     modified: BaseModel,
     policy: HookPayloadPolicy,
+    *,
+    apply_to: Optional[BaseModel] = None,
 ) -> Optional[BaseModel]:
     """Apply policy-based controlled merge.
 
@@ -80,9 +82,14 @@ def apply_policy(
     *modified*; all other changes are silently discarded.
 
     Args:
-        original: The original (or current) payload.
+        original: The baseline payload to diff against (what the plugin received).
         modified: The payload returned by the plugin.
         policy: The policy defining which fields are writable.
+        apply_to: The target payload to apply accepted changes to.  When
+            ``None`` (the default), changes are applied to *original*.  This
+            is useful when the plugin receives an isolated (CoW / deepcopy)
+            snapshot but accepted changes should be merged back into the
+            canonical pipeline payload.
 
     Returns:
         An updated payload with only the allowed changes applied, or
@@ -103,6 +110,7 @@ def apply_policy(
         >>> result.secret
         's'
     """
+    target = apply_to if apply_to is not None else original
     updates: dict[str, Any] = {}
     rejected: list[str] = []
     for field in type(modified).model_fields:
@@ -123,4 +131,4 @@ def apply_policy(
             rejected.append(field)
     if rejected:
         logger.warning("Policy rejected modifications to non-writable fields: %s", rejected)
-    return original.model_copy(update=updates) if updates else None
+    return target.model_copy(update=updates) if updates else None
