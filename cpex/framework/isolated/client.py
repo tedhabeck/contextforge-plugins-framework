@@ -22,8 +22,10 @@ from typing_extensions import Any, Optional
 from cpex.framework.base import Plugin
 from cpex.framework.constants import CONTEXT, HOOK_TYPE, PAYLOAD, PLUGIN_NAME
 from cpex.framework.errors import PluginError, convert_exception_to_error
+from cpex.framework.hooks.agents import AgentPostInvokeResult, AgentPreInvokeResult
 from cpex.framework.hooks.prompts import PromptPosthookResult, PromptPrehookResult
 from cpex.framework.hooks.registry import get_hook_registry
+from cpex.framework.hooks.resources import ResourcePostFetchResult, ResourcePreFetchResult
 from cpex.framework.hooks.tools import ToolPostInvokeResult, ToolPreInvokeResult
 from cpex.framework.isolated.venv_comm import VenvProcessCommunicator
 from cpex.framework.models import PluginConfig, PluginContext, PluginErrorModel, PluginPayload, PluginResult
@@ -282,6 +284,34 @@ class IsolatedVenvPlugin(Plugin):
                 )
             if hook_type == "prompt_post_fetch":
                 result = PromptPosthookResult(
+                    continue_processing=result.get("continue_processing"),
+                    modified_payload=result.get("modified_payload"),
+                    violation=result.get("violation"),
+                    metadata=result.get("metadata"),
+                )
+            if hook_type == "resource_pre_fetch":
+                result = ResourcePreFetchResult(
+                    continue_processing=result.get("continue_processing"),
+                    modified_payload=result.get("modified_payload"),
+                    violation=result.get("violation"),
+                    metadata=result.get("metadata"),
+                )
+            if hook_type == "resource_post_fetch":
+                result = ResourcePostFetchResult(
+                    continue_processing=result.get("continue_processing"),
+                    modified_payload=result.get("modified_payload"),
+                    violation=result.get("violation"),
+                    metadata=result.get("metadata"),
+                )
+            if hook_type == "agent_pre_invoke":
+                result = AgentPreInvokeResult(
+                    continue_processing=result.get("continue_processing"),
+                    modified_payload=result.get("modified_payload"),
+                    violation=result.get("violation"),
+                    metadata=result.get("metadata"),
+                )
+            if hook_type == "agent_post_invoke":
+                result = AgentPostInvokeResult(
                     continue_processing=result.get("continue_processing"),
                     modified_payload=result.get("modified_payload"),
                     violation=result.get("violation"),
