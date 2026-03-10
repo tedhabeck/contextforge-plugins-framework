@@ -327,7 +327,7 @@ server.run()
 
 ## Isolated plugins
 
-Plugins can be run in a separate python virtual environment (venv) to prevent them from interfering with the host environment.
+Native plugins can be run in a separate python virtual environment (venv) to prevent them from interfering with the host environment.  Plugin specific packages are automatically installed based on the contents of the supplied requirements_file.  
 
 ```yaml
   - name: "test_plugin"
