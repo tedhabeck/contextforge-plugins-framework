@@ -8,6 +8,8 @@ Isolated plugin client
 Module that contains plugin client code to serve venv isolated plugins.
 """
 
+import asyncio
+import functools
 import hashlib
 import json
 import logging
@@ -221,50 +223,103 @@ class IsolatedVenvPlugin(Plugin):
         else:
             logger.info("Using cached venv, skipping requirements installation")
 
-    async def invoke_hook(self, hook_type: str, payload: PluginPayload, context: PluginContext) -> PluginResult:
-        """Invoke a plugin in the context of the active venv (self.comm)"""
+    def _validate_hook_invocation(self, hook_type: str) -> type[PluginResult]:
+        """Validate hook type and communication channel.
+
+        Args:
+            hook_type: The hook type to validate
+
+        Returns:
+            The result type for the hook
+
+        Raises:
+            PluginError: If validation fails
+        """
         registry = get_hook_registry()
         result_type = registry.get_result_type(hook_type)
         if not result_type:
             raise PluginError(
                 error=PluginErrorModel(
-                    message=f"Hook type '{hook_type}' not registered in hook registry", plugin_name=self.name
+                    message=f"Hook type '{hook_type}' not registered in hook registry",
+                    plugin_name=self.name
                 )
             )
 
         if not self.comm:
-            raise PluginError(error=PluginErrorModel(message="Plugin comm not initialized", plugin_name=self.name))
-
-        safe_config = self.config.get_safe_config()
-
-        try:
-            # Serialize payload and context to ensure they are JSON-serializable
-            serialized_payload = payload.model_dump(mode="json") if payload is not None else None
-            serialized_context = context.model_dump(mode="json") if context is not None else None
-
-            # Build up the task to send
-            task = {
-                "task_type": "load_and_run_hook",
-                "script_path": self.config.config["script_path"],
-                "class_name": self.config.config["class_name"],
-                "config": safe_config,
-                HOOK_TYPE: hook_type,
-                PLUGIN_NAME: self.name,
-                PAYLOAD: serialized_payload,
-                CONTEXT: serialized_context,
-            }
-
-            result_dict: dict[str, Any] = self.comm.send_task(
-                script_path="cpex/framework/isolated/worker.py", task_data=task
+            raise PluginError(
+                error=PluginErrorModel(
+                    message="Plugin comm not initialized",
+                    plugin_name=self.name
+                )
             )
 
-            # Use registry to instantiate the correct result type
-            result = registry.json_to_result(hook_type, result_dict)
-            return result
+        return result_type
 
-        except PluginError as pe:
-            logger.exception(pe)
+    def _build_hook_task(
+        self,
+        hook_type: str,
+        payload: PluginPayload,
+        context: PluginContext
+    ) -> dict[str, Any]:
+        """Build task dictionary for hook invocation.
+
+        Args:
+            hook_type: The hook type to invoke
+            payload: The payload to send
+            context: The context to send
+
+        Returns:
+            Task dictionary ready for transmission
+        """
+        # Cache config lookups
+        script_path = self.config.config["script_path"]
+        class_name = self.config.config["class_name"]
+        safe_config = self.config.get_safe_config()
+
+        # Serialize payload and context to ensure they are JSON-serializable
+        serialized_payload = payload.model_dump(mode="json") if payload is not None else None
+        serialized_context = context.model_dump(mode="json") if context is not None else None
+
+        return {
+            "task_type": "load_and_run_hook",
+            "script_path": script_path,
+            "class_name": class_name,
+            "config": safe_config,
+            HOOK_TYPE: hook_type,
+            PLUGIN_NAME: self.name,
+            PAYLOAD: serialized_payload,
+            CONTEXT: serialized_context,
+        }
+
+    async def invoke_hook(self, hook_type: str, payload: PluginPayload, context: PluginContext) -> PluginResult:
+        """Invoke a plugin in the context of the active venv (self.comm)"""
+        try:
+            # Validate and get result type
+            self._validate_hook_invocation(hook_type)
+
+            # Build and send task
+            task_data = self._build_hook_task(hook_type, payload, context)
+            loop = asyncio.get_event_loop()
+            result_dict: dict[str, Any] = await loop.run_in_executor(
+                None,
+                functools.partial(self.comm.send_task,script_path="cpex/framework/isolated/worker.py",
+                task_data=task_data)
+            )
+            # Convert response to typed result
+            registry = get_hook_registry()
+            return registry.json_to_result(hook_type, result_dict)
+
+        except PluginError:
+            logger.exception(
+                "Plugin error invoking hook '%s' for plugin '%s'",
+                hook_type,
+                self.name
+            )
             raise
         except Exception as e:
-            logger.exception(e)
+            logger.exception(
+                "Unexpected error invoking hook '%s' for plugin '%s'",
+                hook_type,
+                self.name
+            )
             raise PluginError(error=convert_exception_to_error(e, plugin_name=self.name)) from e
