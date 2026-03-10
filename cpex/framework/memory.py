@@ -19,9 +19,6 @@ from typing import Any, Iterator, Optional, TypeVar
 # Third-Party
 from pydantic import BaseModel, RootModel
 
-# First-Party
-from cpex.framework.errors import PluginFrameworkError
-
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
@@ -523,19 +520,25 @@ def copyonwrite(o: T) -> T:
 _PRIMITIVE_TYPES = (str, int, float, bool, bytes, type(None))
 
 
-def _safe_deepcopy(value: Any) -> Any:
-    """Deep-copy *value* with diagnostic context on failure.
+_memory_logger = logging.getLogger(__name__)
 
-    Wraps :func:`copy.deepcopy` so that failures surface the concrete type and
-    a truncated repr, making it much easier to identify which field or object
-    caused the issue (e.g. file handles, C extensions, locks).
+
+def _safe_deepcopy(value: Any) -> Any:
+    """Deep-copy *value*, falling back to a shared reference on failure.
+
+    For objects that are not (e.g. objects holding locks, sockets, or async state),
+    a warning is logged and the original value is returned as a shared reference.
+    CoW isolation still applies to all other fields in the payload.
     """
     try:
         return copy.deepcopy(value)
     except Exception as e:
-        raise PluginFrameworkError(
-            f"Cannot deep-copy value of type {type(value).__qualname__} (repr={repr(value)!s:.200}): {e}"
-        ) from e
+        _memory_logger.warning(
+            "Cannot deep-copy value of type %s — sharing reference: %s",
+            type(value).__qualname__,
+            e,
+        )
+        return value
 
 
 def _wrap_value(value: Any) -> Any:
@@ -548,6 +551,11 @@ def _wrap_value(value: Any) -> Any:
     - Primitives → share as-is
     - Other mutable types → copy.deepcopy fallback
     """
+    # Weak-reference proxies must be checked first — isinstance() with
+    # other types dereferences the proxy and raises ReferenceError if
+    # the referent has been garbage-collected.
+    if isinstance(value, (weakref.ProxyType, weakref.CallableProxyType)):
+        return value
     if isinstance(value, _PRIMITIVE_TYPES):
         return value
     if isinstance(value, RootModel):
@@ -565,11 +573,7 @@ def _wrap_value(value: Any) -> Any:
         return CopyOnWriteDict(value)
     if isinstance(value, list):
         return CopyOnWriteList(value)
-    # Weak-reference proxies wrap live objects that must not be
-    # copied — pass them through as-is so plugins see the same proxy.
-    if isinstance(value, (weakref.ProxyType, weakref.CallableProxyType)):
-        return value
-    # Other mutable types — fallback to deep copy
+    # Other mutable types — attempt deep copy, fall back to shared reference.
     return _safe_deepcopy(value)
 
 
@@ -601,7 +605,13 @@ def wrap_payload_for_isolation(payload: BaseModel) -> BaseModel:
     updates = {}
     for field_name, field_info in type(payload).model_fields.items():
         value = getattr(payload, field_name, None)
-        if value is None or isinstance(value, _PRIMITIVE_TYPES):
+        if value is None:
+            continue
+        # Weak-reference proxies are passed through as-is (checked before
+        # _PRIMITIVE_TYPES to avoid dereferencing a dead proxy).
+        if isinstance(value, (weakref.ProxyType, weakref.CallableProxyType)):
+            continue
+        if isinstance(value, _PRIMITIVE_TYPES):
             continue
         updates[field_name] = _wrap_value(value)
 

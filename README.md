@@ -164,15 +164,26 @@ A plugin method can:
 
 ### Execution Modes
 
-Plugins run in phases in this order: `sequential` → `audit` → `concurrent` → `fire_and_forget`.
+Plugins run in phases in this order:
 
-| Mode | Execution | Can block? | State merged? | Use case |
-|------|-----------|:-----------:|:-------------:|---------|
-| `sequential` | One at a time, chained | Yes | Yes | Enforcement pipelines |
-| `audit` | One at a time, chained | No | No | Logging, monitoring |
-| `concurrent` | Parallel, fail-fast | Yes | Yes | Independent validations |
-| `fire_and_forget` | Background, after all phases | No | No | Telemetry, audit logs |
-| `disabled` | Not loaded | — | — | Plugin off |
+```
+sequential → transform → audit → concurrent → fire_and_forget
+```
+
+| Mode | Execution | Can block? | Can modify? | State merged? | Use case |
+|------|-----------|:-----------:|:-----------:|:-------------:|---------|
+| `sequential` | Serial, chained | Yes | Yes | Yes | Policy enforcement + transformation |
+| `transform` | Serial, chained | No | Yes | Yes | Data transformation (redaction, rewriting) |
+| `audit` | Serial | No | No | No | Logging, monitoring, metrics |
+| `concurrent` | Parallel, fail-fast | Yes | No | Yes | Independent policy gates |
+| `fire_and_forget` | Background, after all phases | No | No | No | Telemetry, audit logs |
+| `disabled` | Not loaded | — | — | — | Plugin off |
+
+- **`sequential`** plugins are awaited one at a time in priority order. Each receives the chained output of the previous plugin. Can halt the pipeline and modify payloads. Use for enforcement + transformation.
+- **`transform`** plugins are awaited one at a time after all sequential plugins. Can modify payloads but blocking attempts are suppressed. Use for data transformation pipelines (PII redaction, prompt rewriting) that should not have policy-enforcement power.
+- **`audit`** plugins are awaited one at a time after transform. Observe-only: payload modifications are discarded and violations are logged but do not block. Use for monitoring, auditing, and gradual rollout of policies.
+- **`concurrent`** plugins are dispatched in parallel after audit. Can halt the pipeline (fail-fast on first blocking result) but payload modifications are discarded to avoid non-deterministic last-writer-wins races. Use for independent policy gates.
+- **`fire_and_forget`** plugins are dispatched as background tasks after all other phases. They receive an isolated snapshot. Cannot block or modify. Use for telemetry and async side effects.
 
 Error handling is configured separately with `on_error`, independent of mode:
 
@@ -230,17 +241,17 @@ plugins:
 
 ### Priority
 
-Plugins are scheduled by mode, and execute in priority order within sequential bands (lower number = higher priority). Use this to ensure validation runs before transformation, and transformation runs before logging.
+Plugins are scheduled by mode, and execute in priority order within each phase (lower number = higher priority). Use this to ensure enforcement runs before transformation, and transformation runs before logging.
 
 **Plugin Scheduling**
 
-At each hook invocation, plugins are grouped and scheduled by execution modes, following a strict group order:
+At each hook invocation, plugins are grouped and scheduled by execution mode, following a strict phase order:
 
 ```
-sequential → audit → concurrent → fire_and_forget
+sequential → transform → audit → concurrent → fire_and_forget
 ```
 
-Within sequential and audit groups, plugins execute in **priority order** (lower number = higher priority, e.g., `10` runs before `20`).
+Within `sequential`, `transform`, and `audit` phases, plugins execute in **priority order** (lower number = higher priority, e.g., `10` runs before `20`).
 
 ### Conditions
 

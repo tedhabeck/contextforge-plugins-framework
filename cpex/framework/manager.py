@@ -127,6 +127,7 @@ class PluginExecutor:
             default_hook_policy if default_hook_policy else settings.default_hook_policy
         )
         self._runtime_disabled: set[str] = set()
+        self._serial_phase_state: tuple[Optional[PluginPayload], Optional[str]] = (None, None)
 
     async def execute(
         self,
@@ -186,7 +187,7 @@ class PluginExecutor:
         current_payload: PluginPayload | None = None
         decision_plugin_name: Optional[str] = None
 
-        sequential_refs, audit_refs, concurrent_refs, fire_and_forget_refs = self._group_by_mode(
+        sequential_refs, transform_refs, audit_refs, concurrent_refs, fire_and_forget_refs = self._group_by_mode(
             hook_refs, payload, hook_type, global_context
         )
 
@@ -196,77 +197,66 @@ class PluginExecutor:
         concurrent_semaphore = asyncio.Semaphore(pool) if pool else None
 
         # SEQUENTIAL: sequential, chained execution — can halt pipeline
-        for hook_ref in sequential_refs:
-            local_context = self._prepare_plugin_context(hook_ref, global_context, local_contexts, res_local_contexts)
-            effective_payload = current_payload if current_payload is not None else payload
-            plugin_input = self._isolate_payload(effective_payload, policy)
+        halt_result = await self._run_serial_phase(
+            hook_refs=sequential_refs,
+            mode_label="SEQUENTIAL",
+            payload=payload,
+            policy=policy,
+            hook_type=hook_type,
+            global_context=global_context,
+            local_contexts=local_contexts,
+            res_local_contexts=res_local_contexts,
+            violations_as_exceptions=violations_as_exceptions,
+            combined_metadata=combined_metadata,
+            current_payload=current_payload,
+            decision_plugin_name=decision_plugin_name,
+            apply_modifications=True,
+            allow_blocking=True,
+            fire_and_forget_refs=fire_and_forget_refs,
+            fire_and_forget_semaphore=fire_and_forget_semaphore,
+        )
+        if halt_result is not None:
+            return halt_result
+        # Update mutable state from sequential phase
+        current_payload, decision_plugin_name = self._serial_phase_state
 
-            result = await self.execute_plugin(
-                hook_ref,
-                plugin_input,
-                local_context,
-                violations_as_exceptions,
-                global_context,
-                combined_metadata,
-            )
+        # TRANSFORM: serial, chained execution — can modify payloads but cannot halt pipeline
+        await self._run_serial_phase(
+            hook_refs=transform_refs,
+            mode_label="TRANSFORM",
+            payload=payload,
+            policy=policy,
+            hook_type=hook_type,
+            global_context=global_context,
+            local_contexts=local_contexts,
+            res_local_contexts=res_local_contexts,
+            violations_as_exceptions=violations_as_exceptions,
+            combined_metadata=combined_metadata,
+            current_payload=current_payload,
+            decision_plugin_name=decision_plugin_name,
+            apply_modifications=True,
+            allow_blocking=False,
+        )
+        current_payload, decision_plugin_name = self._serial_phase_state
 
-            if result.modified_payload is not None:
-                current_payload, decision_plugin_name = self._apply_payload_modification(
-                    hook_ref, result, effective_payload, policy, hook_type, current_payload, decision_plugin_name
-                )
-
-            if not result.continue_processing:
-                violation_detail = f": [{result.violation.code}] {result.violation.reason}" if result.violation else ""
-                logger.warning(
-                    "Pipeline halted by SEQUENTIAL plugin %s on hook %s%s; scheduling fire-and-forget tasks",
-                    hook_ref.plugin_ref.name,
-                    hook_type,
-                    violation_detail,
-                )
-                return self._build_halt_result(
-                    current_payload,
-                    result.violation,
-                    combined_metadata,
-                    fire_and_forget_refs,
-                    payload,
-                    global_context,
-                    res_local_contexts,
-                    fire_and_forget_semaphore,
-                    hook_type,
-                    decision_plugin_name,
-                )
-
-        # AUDIT: sequential, chained execution — cannot halt pipeline
-        for hook_ref in audit_refs:
-            local_context = self._prepare_plugin_context(hook_ref, global_context, local_contexts, res_local_contexts)
-            effective_payload = current_payload if current_payload is not None else payload
-            plugin_input = self._isolate_payload(effective_payload, policy)
-
-            result = await self.execute_plugin(
-                hook_ref,
-                plugin_input,
-                local_context,
-                violations_as_exceptions,
-                global_context,
-                combined_metadata,
-            )
-
-            if result.modified_payload is not None:
-                current_payload, decision_plugin_name = self._apply_payload_modification(
-                    hook_ref, result, effective_payload, policy, hook_type, current_payload, decision_plugin_name
-                )
-
-            # AUDIT plugins never halt the pipeline; execute_plugin() guarantees
-            # continue_processing=True for this mode; guard defensively.
-            if not result.continue_processing:
-                violation_detail = f": [{result.violation.code}] {result.violation.reason}" if result.violation else ""
-                logger.warning(
-                    "AUDIT plugin %s returned continue_processing=False on hook %s%s; "
-                    "pipeline continues (violation suppressed)",
-                    hook_ref.plugin_ref.name,
-                    hook_type,
-                    violation_detail,
-                )
+        # AUDIT: serial execution — observe-only (no modifications, no blocking)
+        await self._run_serial_phase(
+            hook_refs=audit_refs,
+            mode_label="AUDIT",
+            payload=payload,
+            policy=policy,
+            hook_type=hook_type,
+            global_context=global_context,
+            local_contexts=local_contexts,
+            res_local_contexts=res_local_contexts,
+            violations_as_exceptions=violations_as_exceptions,
+            combined_metadata=combined_metadata,
+            current_payload=current_payload,
+            decision_plugin_name=decision_plugin_name,
+            apply_modifications=False,
+            allow_blocking=False,
+        )
+        current_payload, decision_plugin_name = self._serial_phase_state
 
         # CONCURRENT: parallel execution with fail-fast on first blocking result
         if concurrent_refs:
@@ -292,10 +282,13 @@ class PluginExecutor:
 
             for completed_coro in asyncio.as_completed(concurrent_tasks):
                 result, idx = await completed_coro
-                ref, _lc, eff_payload = concurrent_ctx_list[idx]
+                ref, _, _ = concurrent_ctx_list[idx]
                 if result.modified_payload is not None:
-                    current_payload, decision_plugin_name = self._apply_payload_modification(
-                        ref, result, eff_payload, policy, hook_type, current_payload, decision_plugin_name
+                    logger.debug(
+                        "CONCURRENT plugin %s returned modified_payload on hook %s; "
+                        "discarding (concurrent plugins cannot modify payloads)",
+                        ref.plugin_ref.name,
+                        hook_type,
                     )
                 if not result.continue_processing:
                     pending = sum(1 for t in concurrent_tasks if not t.done())
@@ -347,7 +340,7 @@ class PluginExecutor:
         payload: PluginPayload,
         hook_type: str,
         global_context: GlobalContext,
-    ) -> tuple[list[HookRef], list[HookRef], list[HookRef], list[HookRef]]:
+    ) -> tuple[list[HookRef], list[HookRef], list[HookRef], list[HookRef], list[HookRef]]:
         """Group hook references by mode, filtering disabled and condition-unmatched plugins.
 
         Args:
@@ -357,10 +350,11 @@ class PluginExecutor:
             global_context: Shared context for condition evaluation.
 
         Returns:
-            A tuple of (sequential_refs, audit_refs, concurrent_refs, fire_and_forget_refs),
-            each sorted by priority.
+            A tuple of (sequential_refs, transform_refs, audit_refs, concurrent_refs,
+            fire_and_forget_refs), each sorted by priority.
         """
         sequential_refs: list[HookRef] = []
+        transform_refs: list[HookRef] = []
         audit_refs: list[HookRef] = []
         concurrent_refs: list[HookRef] = []
         fire_and_forget_refs: list[HookRef] = []
@@ -383,6 +377,8 @@ class PluginExecutor:
             # Bucket by mode
             if ref.plugin_ref.mode == PluginMode.SEQUENTIAL:
                 sequential_refs.append(ref)
+            elif ref.plugin_ref.mode == PluginMode.TRANSFORM:
+                transform_refs.append(ref)
             elif ref.plugin_ref.mode == PluginMode.AUDIT:
                 audit_refs.append(ref)
             elif ref.plugin_ref.mode == PluginMode.CONCURRENT:
@@ -391,11 +387,119 @@ class PluginExecutor:
                 fire_and_forget_refs.append(ref)
 
         sequential_refs.sort(key=lambda r: r.plugin_ref.priority)
+        transform_refs.sort(key=lambda r: r.plugin_ref.priority)
         audit_refs.sort(key=lambda r: r.plugin_ref.priority)
         concurrent_refs.sort(key=lambda r: r.plugin_ref.priority)
         fire_and_forget_refs.sort(key=lambda r: r.plugin_ref.priority)
 
-        return sequential_refs, audit_refs, concurrent_refs, fire_and_forget_refs
+        return sequential_refs, transform_refs, audit_refs, concurrent_refs, fire_and_forget_refs
+
+    async def _run_serial_phase(
+        self,
+        hook_refs: list[HookRef],
+        mode_label: str,
+        payload: PluginPayload,
+        policy: Any,
+        hook_type: str,
+        global_context: GlobalContext,
+        local_contexts: Optional[PluginContextTable],
+        res_local_contexts: dict,
+        violations_as_exceptions: bool,
+        combined_metadata: dict[str, Any],
+        current_payload: Optional[PluginPayload],
+        decision_plugin_name: Optional[str],
+        apply_modifications: bool,
+        allow_blocking: bool,
+        fire_and_forget_refs: Optional[list[HookRef]] = None,
+        fire_and_forget_semaphore: Optional[asyncio.Semaphore] = None,
+    ) -> Optional[tuple[PluginResult, PluginContextTable | None]]:
+        """Run a serial execution phase (SEQUENTIAL, TRANSFORM, or AUDIT).
+
+        Args:
+            hook_refs: Hook references to execute in priority order.
+            mode_label: Human-readable mode name for log messages.
+            payload: The original (unmodified) payload.
+            policy: Hook payload policy for field filtering.
+            hook_type: The hook type identifier.
+            global_context: Shared context for all plugins.
+            local_contexts: Existing contexts from previous hook executions.
+            res_local_contexts: Accumulator for local contexts produced in this execution.
+            violations_as_exceptions: Whether to raise violations as exceptions.
+            combined_metadata: Accumulator for plugin metadata.
+            current_payload: The current effective payload (may be None).
+            decision_plugin_name: Name of the plugin that last modified the payload.
+            apply_modifications: Whether to apply payload modifications from plugins.
+            allow_blocking: Whether plugins can halt the pipeline.
+            fire_and_forget_refs: Fire-and-forget refs to schedule on halt (only used when allow_blocking=True).
+            fire_and_forget_semaphore: Semaphore for fire-and-forget tasks (only used when allow_blocking=True).
+
+        Returns:
+            A halt result tuple if the pipeline was halted, or None to continue.
+            Updates ``self._serial_phase_state`` with the latest (current_payload, decision_plugin_name).
+        """
+        for hook_ref in hook_refs:
+            local_context = self._prepare_plugin_context(hook_ref, global_context, local_contexts, res_local_contexts)
+            effective_payload = current_payload if current_payload is not None else payload
+            plugin_input = self._isolate_payload(effective_payload, policy)
+
+            result = await self.execute_plugin(
+                hook_ref,
+                plugin_input,
+                local_context,
+                violations_as_exceptions,
+                global_context,
+                combined_metadata,
+            )
+
+            if result.modified_payload is not None:
+                if apply_modifications:
+                    current_payload, decision_plugin_name = self._apply_payload_modification(
+                        hook_ref, result, effective_payload, policy, hook_type, current_payload, decision_plugin_name
+                    )
+                else:
+                    logger.debug(
+                        "%s plugin %s returned modified_payload on hook %s; discarding (%s is observe-only)",
+                        mode_label,
+                        hook_ref.plugin_ref.name,
+                        hook_type,
+                        mode_label.lower(),
+                    )
+
+            if not result.continue_processing:
+                violation_detail = f": [{result.violation.code}] {result.violation.reason}" if result.violation else ""
+                if allow_blocking:
+                    logger.warning(
+                        "Pipeline halted by %s plugin %s on hook %s%s; scheduling fire-and-forget tasks",
+                        mode_label,
+                        hook_ref.plugin_ref.name,
+                        hook_type,
+                        violation_detail,
+                    )
+                    self._serial_phase_state = (current_payload, decision_plugin_name)
+                    return self._build_halt_result(
+                        current_payload,
+                        result.violation,
+                        combined_metadata,
+                        fire_and_forget_refs or [],
+                        payload,
+                        global_context,
+                        res_local_contexts,
+                        fire_and_forget_semaphore,
+                        hook_type,
+                        decision_plugin_name,
+                    )
+                else:
+                    logger.warning(
+                        "%s plugin %s returned continue_processing=False on hook %s%s; "
+                        "pipeline continues (blocking suppressed)",
+                        mode_label,
+                        hook_ref.plugin_ref.name,
+                        hook_type,
+                        violation_detail,
+                    )
+
+        self._serial_phase_state = (current_payload, decision_plugin_name)
+        return None
 
     def _apply_payload_modification(
         self,
@@ -627,15 +731,17 @@ class PluginExecutor:
         try:
             # Execute plugin with timeout protection
             result = await self._execute_with_timeout(hook_ref, payload, local_context)
-            # Only merge global state for CONCURRENT and SEQUENTIAL modes; FIRE_AND_FORGET and AUDIT
-            # plugins operate on copy-on-write snapshots and should not mutate shared state.
+            # Merge global state for modes that participate in the pipeline chain.
+            # AUDIT and FIRE_AND_FORGET operate on isolated snapshots and should not
+            # mutate shared state.
             if (
                 local_context.global_context
                 and global_context
                 and hook_ref.plugin_ref.mode
                 in (
-                    PluginMode.CONCURRENT,
                     PluginMode.SEQUENTIAL,
+                    PluginMode.TRANSFORM,
+                    PluginMode.CONCURRENT,
                 )
             ):
                 global_context.state.update(local_context.global_context.state)
@@ -686,25 +792,33 @@ class PluginExecutor:
                         violation=result.violation,
                         metadata=combined_metadata,
                     )
-                if hook_ref.plugin_ref.mode == PluginMode.AUDIT:
+                if hook_ref.plugin_ref.mode in (PluginMode.AUDIT, PluginMode.TRANSFORM):
+                    mode_label = hook_ref.plugin_ref.mode.value
                     if result.violation:
                         logger.warning(
-                            "Plugin %s (audit) raised violation — pipeline continues: [%s] %s — %s",
+                            "Plugin %s (%s) raised violation — pipeline continues: [%s] %s — %s",
                             hook_ref.plugin_ref.plugin.name,
+                            mode_label,
                             result.violation.code,
                             result.violation.reason,
                             result.violation.description,
                         )
                     else:
                         logger.warning(
-                            "Plugin %s (audit) returned continue_processing=False without a violation "
+                            "Plugin %s (%s) returned continue_processing=False without a violation "
                             "— pipeline continues",
                             hook_ref.plugin_ref.plugin.name,
+                            mode_label,
                         )
-                    # Violations are logged but not propagated; AUDIT plugins cannot halt the pipeline
+                    # Violations are logged but not propagated; AUDIT and TRANSFORM
+                    # plugins cannot halt the pipeline.  TRANSFORM may still carry a
+                    # modified_payload (applied by the caller); AUDIT never does.
+                    forwarded_payload = (
+                        result.modified_payload if hook_ref.plugin_ref.mode == PluginMode.TRANSFORM else None
+                    )
                     return PluginResult(
                         continue_processing=True,
-                        modified_payload=result.modified_payload,
+                        modified_payload=forwarded_payload,
                         violation=None,
                         metadata=combined_metadata,
                     )

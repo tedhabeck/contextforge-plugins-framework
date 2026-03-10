@@ -15,7 +15,6 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 # First-Party
-from cpex.framework.errors import PluginFrameworkError
 from cpex.framework.memory import (
     CopyOnWriteDict,
     CopyOnWriteList,
@@ -1374,25 +1373,26 @@ class TestSafeDeepCopy:
         assert result is not original
         assert result["a"] is not original["a"]
 
-    def test_non_copyable_raises_framework_error(self):
-        """Non-copyable objects raise PluginFrameworkError with diagnostics."""
+    def test_non_copyable_returns_shared_reference(self):
+        """Non-copyable objects return a shared reference with a warning."""
         import threading
 
         lock = threading.Lock()
 
-        with pytest.raises(PluginFrameworkError, match="Cannot deep-copy") as exc_info:
-            _safe_deepcopy(lock)
+        result = _safe_deepcopy(lock)
 
-        # Verify diagnostic info includes the type name
-        assert "lock" in str(exc_info.value).lower()
+        # Should return the original object as a shared reference
+        assert result is lock
 
-    def test_framework_error_chains_original(self):
-        """PluginFrameworkError chains the original exception as __cause__."""
+    def test_non_copyable_logs_warning(self, caplog):
+        """Non-copyable objects log a warning when falling back to shared reference."""
+        import logging
         import threading
 
         lock = threading.Lock()
 
-        with pytest.raises(PluginFrameworkError) as exc_info:
-            _safe_deepcopy(lock)
+        with caplog.at_level(logging.WARNING):
+            result = _safe_deepcopy(lock)
 
-        assert exc_info.value.__cause__ is not None
+        assert result is lock
+        assert "Cannot deep-copy" in caplog.text or "sharing reference" in caplog.text

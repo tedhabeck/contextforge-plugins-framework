@@ -81,38 +81,62 @@ class TransportType(str, Enum):
 class PluginMode(StrEnum):
     """Plugin modes of operation.
 
-    Execution order: SEQUENTIAL → AUDIT → CONCURRENT → FIRE_AND_FORGET
+    Execution order: SEQUENTIAL → TRANSFORM → AUDIT → CONCURRENT → FIRE_AND_FORGET
+
+    Each mode defines a unique combination of two orthogonal capabilities —
+    **blocking** (halting the pipeline) and **modifying** (changing the payload):
+
+    +-----------------+-------+--------+------------------+
+    | Mode            | Block | Modify | Execution        |
+    +-----------------+-------+--------+------------------+
+    | SEQUENTIAL      |  yes  |  yes   | serial, chained  |
+    | TRANSFORM       |  no   |  yes   | serial, chained  |
+    | AUDIT           |  no   |  no    | serial           |
+    | CONCURRENT      |  yes  |  no    | parallel         |
+    | FIRE_AND_FORGET |  no   |  no    | background       |
+    +-----------------+-------+--------+------------------+
 
     Attributes:
-       sequential: Sequential, chained execution. Receives output of previous plugin.
-           Can halt the pipeline. Global state is merged.
-       audit: Sequential, chained execution. Cannot halt the pipeline — violations
-           are logged only. Global state is NOT merged.
+       sequential: Serial, chained execution. Can halt the pipeline and modify
+           payloads. Global state is merged. Use for policy enforcement +
+           transformation.
+       transform: Serial, chained execution. Can modify payloads but cannot halt
+           the pipeline — blocking results are suppressed. Global state is merged.
+           Use for data transformation pipelines (PII redaction, prompt rewriting).
+       audit: Serial execution. Cannot halt the pipeline or modify payloads —
+           violations are logged, modifications are discarded. Use for observation,
+           logging, and metrics.
        concurrent: Parallel execution with fail-fast on first blocking result.
-           Each plugin receives a snapshot of the payload; modifications are merged
-           into global state. Can halt the pipeline.
-       fire_and_forget: Fire-and-forget background execution (audit logging, telemetry).
-           Isolated snapshot; never halts the pipeline. Fires after all other phases.
-       disabled: Plugin disabled.
+           Can halt the pipeline but cannot modify payloads — modifications are
+           discarded to avoid non-deterministic last-writer-wins races. Use for
+           independent policy gates.
+       fire_and_forget: Background execution via ``asyncio.create_task()``.
+           Cannot halt the pipeline or modify payloads. Receives an isolated
+           snapshot. Fires after all other phases. Use for telemetry, async
+           side effects.
+       disabled: Plugin disabled — skipped entirely.
 
     Examples:
-        >>> PluginMode.CONCURRENT
-        <PluginMode.CONCURRENT: 'concurrent'>
         >>> PluginMode.SEQUENTIAL
         <PluginMode.SEQUENTIAL: 'sequential'>
+        >>> PluginMode.TRANSFORM
+        <PluginMode.TRANSFORM: 'transform'>
+        >>> PluginMode.CONCURRENT
+        <PluginMode.CONCURRENT: 'concurrent'>
         >>> PluginMode.FIRE_AND_FORGET
         <PluginMode.FIRE_AND_FORGET: 'fire_and_forget'>
         >>> PluginMode.AUDIT.value
         'audit'
         >>> PluginMode('disabled')
         <PluginMode.DISABLED: 'disabled'>
-        >>> 'concurrent' in [m.value for m in PluginMode]
+        >>> 'transform' in [m.value for m in PluginMode]
         True
     """
 
     FIRE_AND_FORGET = "fire_and_forget"
     CONCURRENT = "concurrent"
     SEQUENTIAL = "sequential"
+    TRANSFORM = "transform"
     AUDIT = "audit"
     DISABLED = "disabled"
 
@@ -1188,7 +1212,7 @@ class PluginConfig(BaseModel):
         Migrations:
             - ``enforce_ignore_error`` → ``sequential`` + ``on_error=ignore``
             - ``enforce`` → ``sequential``
-            - ``permissive`` → ``audit``
+            - ``permissive`` → ``transform``
         """
         if isinstance(data, dict):
             mode = data.get("mode")
@@ -1198,7 +1222,7 @@ class PluginConfig(BaseModel):
             elif mode == "enforce":
                 data["mode"] = "sequential"
             elif mode == "permissive":
-                data["mode"] = "audit"
+                data["mode"] = "transform"
         return data
 
     conditions: list[PluginCondition] = Field(default_factory=list)  # When to apply

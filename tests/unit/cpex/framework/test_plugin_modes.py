@@ -6,12 +6,13 @@ SPDX-License-Identifier: Apache-2.0
 Tests for PluginMode / OnError refactor:
   - FIRE_AND_FORGET fire-and-forget semantics
   - OnError.IGNORE / DISABLE / FAIL behaviors
-  - CONCURRENT parallel execution
-  - SEQUENTIAL chained execution
-  - AUDIT sequential execution (cannot halt)
-  - Phase ordering: SEQUENTIAL → AUDIT → CONCURRENT → FIRE_AND_FORGET
+  - CONCURRENT parallel execution (can block, cannot modify)
+  - SEQUENTIAL chained execution (can block + modify)
+  - TRANSFORM chained execution (can modify, cannot block)
+  - AUDIT sequential execution (observe-only: cannot halt or modify)
+  - Phase ordering: SEQUENTIAL → TRANSFORM → AUDIT → CONCURRENT → FIRE_AND_FORGET
   - execution_pool semaphore for FIRE_AND_FORGET tasks
-  - Backward-compat migration: enforce / enforce_ignore_error → SEQUENTIAL, permissive → AUDIT
+  - Backward-compat migration: enforce / enforce_ignore_error → SEQUENTIAL, permissive → TRANSFORM
 """
 
 # Standard
@@ -408,8 +409,8 @@ def test_plugin_config_migration_enforce_to_sequential():
     assert cfg.mode == PluginMode.SEQUENTIAL
 
 
-def test_plugin_config_migration_permissive_to_audit():
-    """Legacy 'permissive' mode migrates to AUDIT."""
+def test_plugin_config_migration_permissive_to_transform():
+    """Legacy 'permissive' mode migrates to TRANSFORM."""
     cfg = PluginConfig.model_validate(
         {
             "name": "legacy_permissive",
@@ -417,7 +418,7 @@ def test_plugin_config_migration_permissive_to_audit():
             "mode": "permissive",
         }
     )
-    assert cfg.mode == PluginMode.AUDIT
+    assert cfg.mode == PluginMode.TRANSFORM
 
 
 # ---------------------------------------------------------------------------
@@ -506,8 +507,8 @@ async def test_sequential_can_halt_pipeline():
 
 
 @pytest.mark.asyncio
-async def test_sequential_executes_before_audit():
-    """SEQUENTIAL plugins run before AUDIT plugins."""
+async def test_sequential_executes_before_transform():
+    """SEQUENTIAL plugins run before TRANSFORM plugins regardless of priority."""
 
     call_order: list[str] = []
 
@@ -518,23 +519,25 @@ async def test_sequential_executes_before_audit():
 
     manager = await _make_manager()
     cfg_seq = make_plugin_config("SeqFirst", PluginMode.SEQUENTIAL, priority=10)
-    cfg_perm = make_plugin_config("PermSecond", PluginMode.AUDIT, priority=1)  # lower priority number
+    cfg_xform = make_plugin_config("XformSecond", PluginMode.TRANSFORM, priority=1)  # lower priority number
     plugin_seq = OrderPlugin(cfg_seq)
-    plugin_perm = OrderPlugin(cfg_perm)
+    plugin_xform = OrderPlugin(cfg_xform)
 
     ref_seq = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin_seq))
-    ref_perm = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin_perm))
+    ref_xform = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin_xform))
 
     with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
-        mock_get.return_value = [ref_seq, ref_perm]
+        mock_get.return_value = [ref_seq, ref_xform]
         payload = PromptPrehookPayload(prompt_id="test", args={})
         global_context = GlobalContext(request_id="seq3")
 
-        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
 
     assert result.continue_processing
-    # SEQUENTIAL runs first regardless of priority
-    assert call_order == ["SeqFirst", "PermSecond"]
+    assert call_order == ["SeqFirst", "XformSecond"]
 
     await manager.shutdown()
 
@@ -567,7 +570,6 @@ async def test_sequential_executes_before_concurrent():
         result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
 
     assert result.continue_processing
-    # SEQUENTIAL runs first regardless of priority
     assert call_order == ["SeqFirst2", "ConcSecond"]
 
     await manager.shutdown()
@@ -579,39 +581,48 @@ async def test_sequential_executes_before_concurrent():
 
 
 @pytest.mark.asyncio
-async def test_phase_order_sequential_before_concurrent():
-    """SEQUENTIAL phase completes before CONCURRENT phase begins."""
+async def test_phase_order_all_five_modes():
+    """All five phases execute in the correct order: SEQ → TRANSFORM → AUDIT → CONC → F&F."""
 
     phase_log: list[str] = []
+    fnf_event = asyncio.Event()
 
-    class SeqPlugin(Plugin):
+    class LogPlugin(Plugin):
         async def prompt_pre_fetch(self, payload, context):
-            phase_log.append("sequential")
-            return PluginResult(continue_processing=True)
-
-    class ConcPlugin(Plugin):
-        async def prompt_pre_fetch(self, payload, context):
-            phase_log.append("concurrent")
+            phase_log.append(self.name)
+            if self.name == "fnf":
+                fnf_event.set()
             return PluginResult(continue_processing=True)
 
     manager = await _make_manager()
-    cfg_seq = make_plugin_config("PhaseSeq", PluginMode.SEQUENTIAL, priority=1)
-    cfg_conc = make_plugin_config("PhaseConc", PluginMode.CONCURRENT, priority=1)
-    plugin_seq = SeqPlugin(cfg_seq)
-    plugin_conc = ConcPlugin(cfg_conc)
-
-    ref_seq = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin_seq))
-    ref_conc = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin_conc))
+    modes = [
+        ("seq", PluginMode.SEQUENTIAL),
+        ("xform", PluginMode.TRANSFORM),
+        ("audit", PluginMode.AUDIT),
+        ("conc", PluginMode.CONCURRENT),
+        ("fnf", PluginMode.FIRE_AND_FORGET),
+    ]
+    refs = []
+    for name, mode in modes:
+        cfg = make_plugin_config(name, mode, priority=1)
+        plugin = LogPlugin(cfg)
+        refs.append(HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin)))
 
     with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
-        mock_get.return_value = [ref_seq, ref_conc]
+        mock_get.return_value = refs
         payload = PromptPrehookPayload(prompt_id="test", args={})
-        global_context = GlobalContext(request_id="phase1")
+        global_context = GlobalContext(request_id="phase_all")
 
-        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
 
     assert result.continue_processing
-    assert phase_log == ["sequential", "concurrent"]
+    # F&F is async — wait for it
+    await asyncio.sleep(0.1)
+
+    assert phase_log == ["seq", "xform", "audit", "conc", "fnf"]
 
     await manager.shutdown()
 
@@ -659,5 +670,193 @@ async def test_fire_and_forget_fires_after_all_phases():
     assert "fire_and_forget" in phase_log
     # FIRE_AND_FORGET always comes after sequential in the log
     assert phase_log.index("sequential") < phase_log.index("fire_and_forget")
+
+    await manager.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# TRANSFORM mode tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_transform_chains_payload():
+    """Each TRANSFORM plugin receives the chained output of the previous plugin."""
+
+    received_payloads: list = []
+
+    class ChainPlugin(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            step = int(payload.args.get("step", "0"))
+            received_payloads.append(step)
+            new_payload = PromptPrehookPayload(prompt_id=payload.prompt_id, args={"step": str(step + 1)})
+            return PluginResult(continue_processing=True, modified_payload=new_payload)
+
+    manager = await _make_manager()
+    cfg1 = make_plugin_config("XformChain1", PluginMode.TRANSFORM, priority=1)
+    cfg2 = make_plugin_config("XformChain2", PluginMode.TRANSFORM, priority=2)
+    plugin1 = ChainPlugin(cfg1)
+    plugin2 = ChainPlugin(cfg2)
+
+    ref1 = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin1))
+    ref2 = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin2))
+
+    with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
+        mock_get.return_value = [ref1, ref2]
+        payload = PromptPrehookPayload(prompt_id="test", args={"step": "0"})
+        global_context = GlobalContext(request_id="xform1")
+
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+
+    assert received_payloads == [0, 1]
+    assert result.modified_payload is not None
+    assert result.modified_payload.args["step"] == "2"
+
+    await manager.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_transform_cannot_halt_pipeline():
+    """A TRANSFORM plugin returning continue_processing=False is suppressed."""
+
+    call_order: list[str] = []
+
+    class BlockingTransform(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            call_order.append("blocker")
+            return PluginResult(continue_processing=False)
+
+    class AfterTransform(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            call_order.append("after")
+            return PluginResult(continue_processing=True)
+
+    manager = await _make_manager()
+    cfg1 = make_plugin_config("XformBlock", PluginMode.TRANSFORM, priority=1)
+    cfg2 = make_plugin_config("XformAfter", PluginMode.TRANSFORM, priority=2)
+    plugin1 = BlockingTransform(cfg1)
+    plugin2 = AfterTransform(cfg2)
+
+    ref1 = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin1))
+    ref2 = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin2))
+
+    with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
+        mock_get.return_value = [ref1, ref2]
+        payload = PromptPrehookPayload(prompt_id="test", args={})
+        global_context = GlobalContext(request_id="xform2")
+
+        result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+
+    # Pipeline was NOT halted — both plugins ran
+    assert result.continue_processing
+    assert call_order == ["blocker", "after"]
+
+    await manager.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_transform_executes_after_sequential_before_audit():
+    """TRANSFORM phase runs between SEQUENTIAL and AUDIT."""
+
+    call_order: list[str] = []
+
+    class OrderPlugin(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            call_order.append(self.name)
+            return PluginResult(continue_processing=True)
+
+    manager = await _make_manager()
+    configs = [
+        ("AuditP", PluginMode.AUDIT, 1),
+        ("XformP", PluginMode.TRANSFORM, 1),
+        ("SeqP", PluginMode.SEQUENTIAL, 1),
+    ]
+    refs = []
+    for name, mode, prio in configs:
+        cfg = make_plugin_config(name, mode, priority=prio)
+        plugin = OrderPlugin(cfg)
+        refs.append(HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin)))
+
+    with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
+        mock_get.return_value = refs
+        payload = PromptPrehookPayload(prompt_id="test", args={})
+        global_context = GlobalContext(request_id="xform3")
+
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+
+    assert call_order == ["SeqP", "XformP", "AuditP"]
+
+    await manager.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Modification discard regression tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_audit_modification_discarded():
+    """AUDIT plugins that return modified_payload have their changes silently discarded."""
+
+    class AuditModifier(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            new_payload = PromptPrehookPayload(prompt_id=payload.prompt_id, args={"injected": "yes"})
+            return PluginResult(continue_processing=True, modified_payload=new_payload)
+
+    manager = await _make_manager()
+    cfg = make_plugin_config("AuditMod", PluginMode.AUDIT, priority=1)
+    plugin = AuditModifier(cfg)
+
+    ref = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin))
+
+    with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
+        mock_get.return_value = [ref]
+        payload = PromptPrehookPayload(prompt_id="test", args={"original": "yes"})
+        global_context = GlobalContext(request_id="audit_mod")
+
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+
+    # Payload should be unchanged — AUDIT cannot modify
+    assert result.modified_payload is None
+
+    await manager.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_modification_discarded():
+    """CONCURRENT plugins that return modified_payload have their changes silently discarded."""
+
+    class ConcModifier(Plugin):
+        async def prompt_pre_fetch(self, payload, context):
+            new_payload = PromptPrehookPayload(prompt_id=payload.prompt_id, args={"injected": "yes"})
+            return PluginResult(continue_processing=True, modified_payload=new_payload)
+
+    manager = await _make_manager()
+    cfg = make_plugin_config("ConcMod", PluginMode.CONCURRENT, priority=1)
+    plugin = ConcModifier(cfg)
+
+    ref = HookRef(PromptHookType.PROMPT_PRE_FETCH, PluginRef(plugin))
+
+    with patch.object(manager._registry, "get_hook_refs_for_hook") as mock_get:
+        mock_get.return_value = [ref]
+        payload = PromptPrehookPayload(prompt_id="test", args={"original": "yes"})
+        global_context = GlobalContext(request_id="conc_mod")
+
+        with patch("cpex.framework.manager.settings") as mock_settings:
+            mock_settings.execution_pool = None
+            mock_settings.default_hook_policy = "allow"
+            result, _ = await manager.invoke_hook(PromptHookType.PROMPT_PRE_FETCH, payload, global_context)
+
+    # Payload should be unchanged — CONCURRENT cannot modify
+    assert result.modified_payload is None
 
     await manager.shutdown()
