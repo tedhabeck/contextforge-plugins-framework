@@ -89,22 +89,6 @@ plugins:
             "metadata": {}
         }
         mock_comm_class.return_value = mock_comm
-        # manager = PluginManager("./tests/unit/cpex/fixtures/configs/isolated_plugin.yaml")
-        # Create plugin config
-        # config_dict = {
-        #     "name": "test_plugin",
-        #     "kind": "isolated_venv",
-        #     "description": "Test plugin",
-        #     "version": "1.0.0",
-        #     "author": "Test",
-        #     "hooks": ["tool_pre_invoke"],
-        #     "config": {
-        #         "class_name": "test_plugin.TestPlugin",
-        #         "venv_path": str(tmp_path / ".venv"),
-        #         "requirements_file": str(tmp_path / "requirements.txt"),
-        #         "script_path": str(tmp_path / "plugins")
-        #     }
-        # }
 
         config_dict = {
             "name": "test_plugin",
@@ -130,6 +114,8 @@ plugins:
             from cpex.framework.hooks.tools import ToolPreInvokeResult
             mock_reg = MagicMock()
             mock_reg.get_result_type.return_value = ToolPreInvokeResult
+            mock_reg.json_to_result = MagicMock()
+            mock_reg.json_to_result.return_value = ToolPreInvokeResult(continue_processing=True)
             mock_registry.return_value = mock_reg
             
             await plugin.initialize()
@@ -367,8 +353,14 @@ plugins:
         
         with patch("cpex.framework.isolated.client.get_hook_registry") as mock_registry:
             from cpex.framework.hooks.tools import ToolPreInvokeResult
+            
             mock_reg = MagicMock()
             mock_reg.get_result_type.return_value = ToolPreInvokeResult
+            mock_reg.json_to_result = MagicMock()
+            mock_reg.json_to_result.return_value = ToolPreInvokeResult(
+                continue_processing=False,
+                violation={"reason": "Policy violation", "description":"severity high", "code": "PROHIBITED_CONTENT"},
+            )
             mock_registry.return_value = mock_reg
             
             payload = ToolPreInvokePayload(name="dangerous_tool", args={})

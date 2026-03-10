@@ -139,15 +139,22 @@ class TestIsolatedVenvPlugin:
         mock_registry = MagicMock()
         mock_registry.get_result_type.return_value = ToolPreInvokeResult
         mock_get_registry.return_value = mock_registry
-
-        # Setup communicator
-        mock_comm = MagicMock()
         response_data = {
             "continue_processing": True,
             "modified_payload": {"name": "test_tool", "args": {}},
             "violation": None,
             "metadata": {},
         }
+
+        mock_registry.json_to_result = MagicMock()
+        mock_registry.json_to_result.return_value = ToolPreInvokeResult(
+                    continue_processing=response_data.get("continue_processing"),
+                    modified_payload=response_data.get("modified_payload"),
+                    violation=response_data.get("violation"),
+                    metadata=response_data.get("metadata"),
+                )
+        # Setup communicator
+        mock_comm = MagicMock()
         mock_comm.send_task.return_value = response_data
         plugin.comm = mock_comm
 
@@ -177,6 +184,13 @@ class TestIsolatedVenvPlugin:
             "metadata": {},
         }
         mock_comm.send_task.return_value = response_data
+        mock_registry.json_to_result = MagicMock()
+        mock_registry.json_to_result.return_value = ToolPostInvokeResult(
+                    continue_processing=response_data.get("continue_processing"),
+                    modified_payload=response_data.get("modified_payload"),
+                    violation=response_data.get("violation"),
+                    metadata=response_data.get("metadata"),
+        )
         plugin.comm = mock_comm
 
         from cpex.framework.hooks.tools import ToolPostInvokePayload
@@ -194,6 +208,7 @@ class TestIsolatedVenvPlugin:
         """Test successful prompt_pre_fetch hook invocation."""
         mock_registry = MagicMock()
         mock_registry.get_result_type.return_value = PromptPrehookResult
+        mock_registry.json_to_result = MagicMock()
         mock_get_registry.return_value = mock_registry
 
         mock_comm = MagicMock()
@@ -204,6 +219,12 @@ class TestIsolatedVenvPlugin:
             "metadata": {},
         }
         mock_comm.send_task.return_value = response_data
+        mock_registry.json_to_result.return_value = PromptPrehookResult(
+                    continue_processing=response_data.get("continue_processing"),
+                    modified_payload=response_data.get("modified_payload"),
+                    violation=response_data.get("violation"),
+                    metadata=response_data.get("metadata"),
+        )
         plugin.comm = mock_comm
 
         from cpex.framework.hooks.prompts import PromptPrehookPayload
@@ -230,6 +251,13 @@ class TestIsolatedVenvPlugin:
             "violation": None,
             "metadata": {},
         }
+        mock_registry.json_to_result = MagicMock()
+        mock_registry.json_to_result.return_value = PromptPosthookResult(
+                    continue_processing=response_data.get("continue_processing"),
+                    modified_payload=response_data.get("modified_payload"),
+                    violation=response_data.get("violation"),
+                    metadata=response_data.get("metadata"),
+        )
         mock_comm.send_task.return_value = response_data
         plugin.comm = mock_comm
 
@@ -248,6 +276,7 @@ class TestIsolatedVenvPlugin:
         mock_registry = MagicMock()
         mock_registry.get_result_type.return_value = ToolPreInvokeResult
         mock_get_registry.return_value = mock_registry
+        mock_registry.json_to_result = MagicMock()
 
         mock_comm = MagicMock()
         response_data = {
@@ -258,6 +287,13 @@ class TestIsolatedVenvPlugin:
         }
         mock_comm.send_task.return_value = response_data
         plugin.comm = mock_comm
+        mock_registry.json_to_result.return_value = ToolPreInvokeResult(
+                    continue_processing=response_data.get("continue_processing"),
+                    modified_payload=response_data.get("modified_payload"),
+                    violation=response_data.get("violation"),
+                    metadata=response_data.get("metadata"),
+        )
+
 
         from cpex.framework.hooks.tools import ToolPreInvokePayload
 

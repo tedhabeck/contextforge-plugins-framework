@@ -22,11 +22,7 @@ from typing_extensions import Any, Optional
 from cpex.framework.base import Plugin
 from cpex.framework.constants import CONTEXT, HOOK_TYPE, PAYLOAD, PLUGIN_NAME
 from cpex.framework.errors import PluginError, convert_exception_to_error
-from cpex.framework.hooks.agents import AgentPostInvokeResult, AgentPreInvokeResult
-from cpex.framework.hooks.prompts import PromptPosthookResult, PromptPrehookResult
 from cpex.framework.hooks.registry import get_hook_registry
-from cpex.framework.hooks.resources import ResourcePostFetchResult, ResourcePreFetchResult
-from cpex.framework.hooks.tools import ToolPostInvokeResult, ToolPreInvokeResult
 from cpex.framework.isolated.venv_comm import VenvProcessCommunicator
 from cpex.framework.models import PluginConfig, PluginContext, PluginErrorModel, PluginPayload, PluginResult
 
@@ -243,10 +239,10 @@ class IsolatedVenvPlugin(Plugin):
 
         try:
             # Serialize payload and context to ensure they are JSON-serializable
-            serialized_payload = payload.model_dump(mode="json") if payload else None
-            serialized_context = context.model_dump(mode="json") if context else None
+            serialized_payload = payload.model_dump(mode="json") if payload is not None else None
+            serialized_context = context.model_dump(mode="json") if context is not None else None
 
-            # build up the task to send
+            # Build up the task to send
             task = {
                 "task_type": "load_and_run_hook",
                 "script_path": self.config.config["script_path"],
@@ -257,67 +253,15 @@ class IsolatedVenvPlugin(Plugin):
                 PAYLOAD: serialized_payload,
                 CONTEXT: serialized_context,
             }
-            result: Any = self.comm.send_task(script_path="cpex/framework/isolated/worker.py", task_data=task)
-            #
-            # This is going to be tricky.  Need to see what the response is and initialize the proper result object from the dict
-            # task_data
-            if hook_type == "tool_pre_invoke":
-                result = ToolPreInvokeResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "tool_post_invoke":
-                result = ToolPostInvokeResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "prompt_pre_fetch":
-                result = PromptPrehookResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "prompt_post_fetch":
-                result = PromptPosthookResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "resource_pre_fetch":
-                result = ResourcePreFetchResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "resource_post_fetch":
-                result = ResourcePostFetchResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "agent_pre_invoke":
-                result = AgentPreInvokeResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
-            if hook_type == "agent_post_invoke":
-                result = AgentPostInvokeResult(
-                    continue_processing=result.get("continue_processing"),
-                    modified_payload=result.get("modified_payload"),
-                    violation=result.get("violation"),
-                    metadata=result.get("metadata"),
-                )
+
+            result_dict: dict[str, Any] = self.comm.send_task(
+                script_path="cpex/framework/isolated/worker.py", task_data=task
+            )
+
+            # Use registry to instantiate the correct result type
+            result = registry.json_to_result(hook_type, result_dict)
             return result
+
         except PluginError as pe:
             logger.exception(pe)
             raise
