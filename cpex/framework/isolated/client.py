@@ -101,7 +101,7 @@ class IsolatedVenvPlugin(Plugin):
 
         try:
             # Load metadata
-            with open(metadata_path, "r") as f:
+            with open(metadata_path, "r", encoding="utf8") as f:
                 metadata = json.load(f)
 
             # Compute current requirements hash
@@ -137,7 +137,7 @@ class IsolatedVenvPlugin(Plugin):
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         }
 
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf8") as f:
             json.dump(metadata, f, indent=2)
 
         logger.info(f"Saved cache metadata to {metadata_path}")
