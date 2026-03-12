@@ -223,6 +223,13 @@ class IsolatedVenvPlugin(Plugin):
         else:
             logger.info("Using cached venv, skipping requirements installation")
 
+    async def cleanup(self) -> None:
+        """Cleanup resources, including stopping the worker process."""
+        if self.comm:
+            logger.info("Stopping worker process for plugin '%s'", self.name)
+            self.comm.stop_worker()
+            self.comm = None
+
     def _validate_hook_invocation(self, hook_type: str) -> type[PluginResult]:
         """Validate hook type and communication channel.
 

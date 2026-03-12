@@ -123,62 +123,93 @@ class TestVenvProcessCommunicator:
         communicator.install_requirements("nonexistent_requirements.txt")
 
     @patch("subprocess.Popen")
-    def test_send_task_success(self, mock_popen, communicator):
+    @patch("threading.Thread")
+    @patch("cpex.framework.isolated.venv_comm.Queue")
+    def test_send_task_success(self, mock_queue_class, mock_thread, mock_popen, communicator):
         """Test successful task sending and response."""
         task_data = {"task_type": "info", "data": "test"}
-        expected_response = {"status": "success", "result": "ok"}
         
         # Mock the process
         mock_process = MagicMock()
-        mock_process.communicate.return_value = (json.dumps(expected_response), "")
-        mock_process.returncode = 0
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
+        
+        # Mock the thread
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        # Mock the Queue to return our response
+        mock_queue_instance = MagicMock()
+        mock_queue_instance.get.return_value = {
+            "status": "success",
+            "result": "ok",
+            "request_id": "test-id"
+        }
+        mock_queue_class.return_value = mock_queue_instance
+        
+        # Manually start the worker to set up the infrastructure
+        communicator.start_worker("test_script.py")
         
         result = communicator.send_task("test_script.py", task_data)
         
-        assert result == expected_response
-        mock_popen.assert_called_once()
-        mock_process.communicate.assert_called_once()
+        # Request ID should be removed from response
+        assert result == {"status": "success", "result": "ok"}
 
     @patch("subprocess.Popen")
-    def test_send_task_process_failure(self, mock_popen, communicator):
+    @patch("threading.Thread")
+    @patch("cpex.framework.isolated.venv_comm.Queue")
+    def test_send_task_process_failure(self, mock_queue_class, mock_thread, mock_popen, communicator):
         """Test task sending with process failure."""
         task_data = {"task_type": "test"}
         
         mock_process = MagicMock()
-        mock_process.communicate.return_value = ("", "Error occurred")
-        mock_process.returncode = 1
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
         
-        with pytest.raises(RuntimeError, match="Child process failed"):
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        # Mock the Queue to return error response
+        mock_queue_instance = MagicMock()
+        mock_queue_instance.get.return_value = {
+            "status": "error",
+            "message": "Process failed",
+            "request_id": "test-id"
+        }
+        mock_queue_class.return_value = mock_queue_instance
+        
+        # Start worker
+        communicator.start_worker("test_script.py")
+        
+        with pytest.raises(RuntimeError, match="Worker process error: Process failed"):
             communicator.send_task("test_script.py", task_data)
 
     @patch("subprocess.Popen")
-    def test_send_task_invalid_json_response(self, mock_popen, communicator):
-        """Test task sending with invalid JSON response."""
-        task_data = {"task_type": "test"}
-        
-        mock_process = MagicMock()
-        mock_process.communicate.return_value = ("invalid json", "")
-        mock_process.returncode = 0
-        mock_popen.return_value = mock_process
-        
-        with pytest.raises(RuntimeError, match="Invalid JSON response"):
-            communicator.send_task("test_script.py", task_data)
-
-    @patch("subprocess.Popen")
-    def test_send_task_timeout(self, mock_popen, communicator):
+    @patch("threading.Thread")
+    def test_send_task_timeout(self, mock_thread, mock_popen, communicator):
         """Test task sending with timeout."""
         task_data = {"task_type": "test"}
         
         mock_process = MagicMock()
-        mock_process.communicate.side_effect = subprocess.TimeoutExpired("cmd", 30)
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
         
-        with pytest.raises(RuntimeError, match="Child process timed out"):
-            communicator.send_task("test_script.py", task_data)
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
         
-        mock_process.kill.assert_called_once()
+        # Don't put anything in the queue to simulate timeout
+        
+        with pytest.raises(RuntimeError, match="Worker process timed out"):
+            communicator.send_task("test_script.py", task_data, timeout=0.1)
 
     @patch("subprocess.Popen")
     def test_send_task_communication_error(self, mock_popen, communicator):
@@ -187,11 +218,13 @@ class TestVenvProcessCommunicator:
         
         mock_popen.side_effect = OSError("Connection failed")
         
-        with pytest.raises(RuntimeError, match="Communication error"):
+        with pytest.raises(RuntimeError, match="Failed to start worker process"):
             communicator.send_task("test_script.py", task_data)
 
     @patch("subprocess.Popen")
-    def test_send_task_with_complex_data(self, mock_popen, communicator):
+    @patch("threading.Thread")
+    @patch("cpex.framework.isolated.venv_comm.Queue")
+    def test_send_task_with_complex_data(self, mock_queue_class, mock_thread, mock_popen, communicator):
         """Test sending task with complex nested data structures."""
         task_data = {
             "task_type": "load_and_run_hook",
@@ -199,31 +232,62 @@ class TestVenvProcessCommunicator:
             "payload": {"args": {"key": "value"}},
             "context": {"state": {}, "metadata": {}}
         }
-        expected_response = {"status": "success", "result": {"data": "processed"}}
         
         mock_process = MagicMock()
-        mock_process.communicate.return_value = (json.dumps(expected_response), "")
-        mock_process.returncode = 0
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        # Mock the Queue to return response
+        mock_queue_instance = MagicMock()
+        mock_queue_instance.get.return_value = {
+            "status": "success",
+            "result": {"data": "processed"},
+            "request_id": "test-id"
+        }
+        mock_queue_class.return_value = mock_queue_instance
+        
+        # Start worker
+        communicator.start_worker("worker.py")
         
         result = communicator.send_task("worker.py", task_data)
         
-        assert result == expected_response
+        assert result == {"status": "success", "result": {"data": "processed"}}
         # Verify the task was serialized properly
         call_args = mock_popen.call_args
         assert call_args is not None
 
     @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    @patch("cpex.framework.isolated.venv_comm.Queue")
     @patch("os.getcwd")
-    def test_send_task_maintains_cwd(self, mock_getcwd, mock_popen, communicator):
+    def test_send_task_maintains_cwd(self, mock_getcwd, mock_queue_class, mock_thread, mock_popen, communicator):
         """Test that send_task maintains current working directory."""
         mock_getcwd.return_value = "/test/path"
         task_data = {"task_type": "test"}
         
         mock_process = MagicMock()
-        mock_process.communicate.return_value = ('{"status": "ok"}', "")
-        mock_process.returncode = 0
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        # Mock the Queue to return response
+        mock_queue_instance = MagicMock()
+        mock_queue_instance.get.return_value = {"status": "ok", "request_id": "test-id"}
+        mock_queue_class.return_value = mock_queue_instance
+        
+        # Start worker
+        communicator.start_worker("test_script.py")
         
         communicator.send_task("test_script.py", task_data)
         
@@ -241,5 +305,149 @@ class TestVenvProcessCommunicator:
         """Test that venv_path property is accessible."""
         assert communicator.venv_path == mock_venv_path
         assert isinstance(communicator.venv_path, Path)
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_start_worker_success(self, mock_thread, mock_popen, communicator):
+        """Test successful worker process start."""
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        communicator.start_worker("test_script.py")
+        
+        assert communicator.running is True
+        assert communicator.process is not None
+        mock_popen.assert_called_once()
+        # Should start two threads (stdout and stderr readers)
+        assert mock_thread.call_count == 2
+
+    @patch("subprocess.Popen")
+    def test_start_worker_already_running(self, mock_popen, communicator):
+        """Test starting worker when already running."""
+        communicator.running = True
+        communicator.process = MagicMock()
+        
+        communicator.start_worker("test_script.py")
+        
+        # Should not create new process
+        mock_popen.assert_not_called()
+
+    @patch("subprocess.Popen")
+    def test_start_worker_failure(self, mock_popen, communicator):
+        """Test worker start failure."""
+        mock_popen.side_effect = OSError("Failed to start")
+        
+        with pytest.raises(RuntimeError, match="Failed to start worker process"):
+            communicator.start_worker("test_script.py")
+        
+        assert communicator.running is False
+
+    def test_stop_worker_not_running(self, communicator):
+        """Test stopping worker when not running."""
+        communicator.running = False
+        communicator.process = None
+        
+        # Should not raise error
+        communicator.stop_worker()
+
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_stop_worker_success(self, mock_thread, mock_popen, communicator):
+        """Test successful worker stop."""
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.wait.return_value = None
+        mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.return_value = False
+        mock_thread.return_value = mock_thread_instance
+        
+        # Start worker first
+        communicator.start_worker("test_script.py")
+        
+        # Stop worker
+        communicator.stop_worker()
+        
+        assert communicator.running is False
+        assert communicator.process is None
+        mock_process.wait.assert_called()
+
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_stop_worker_timeout(self, mock_thread, mock_popen, communicator):
+        """Test worker stop with timeout."""
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.wait.side_effect = subprocess.TimeoutExpired("cmd", 5)
+        mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.return_value = False
+        mock_thread.return_value = mock_thread_instance
+        
+        # Start worker first
+        communicator.start_worker("test_script.py")
+        
+        # Stop worker
+        communicator.stop_worker()
+        
+        # Should kill process after timeout
+        mock_process.kill.assert_called_once()
+
+    def test_is_alive_not_running(self, communicator):
+        """Test is_alive when worker not running."""
+        communicator.running = False
+        communicator.process = None
+        
+        assert communicator.is_alive() is False
+
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_is_alive_running(self, mock_thread, mock_popen, communicator):
+        """Test is_alive when worker is running."""
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        communicator.start_worker("test_script.py")
+        
+        assert communicator.is_alive() is True
+
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_is_alive_process_terminated(self, mock_thread, mock_popen, communicator):
+        """Test is_alive when process has terminated."""
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.stdout = MagicMock()
+        mock_process.stderr = MagicMock()
+        mock_process.poll.return_value = 1  # Process terminated
+        mock_popen.return_value = mock_process
+        
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+        
+        communicator.start_worker("test_script.py")
+        
+        assert communicator.is_alive() is False
+
 
 # Made with Bob
