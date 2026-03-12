@@ -102,65 +102,65 @@ async def process_task(task_data):
 async def main():
     """Main function - continuously read from stdin, process tasks, write to stdout."""
     logger.info("Worker process started, waiting for tasks...")
-    
+
     try:
         # Continuously read and process tasks
         while True:
             try:
                 # Read one line at a time
                 line = sys.stdin.readline()
-                
+
                 # Check for EOF
                 if not line:
                     logger.info("EOF received, shutting down worker")
                     break
-                
+
                 # Parse the task
                 task_data = json.loads(line.strip())
                 request_id = task_data.get("request_id", "unknown")
-                
+
                 # Check for shutdown signal
                 if task_data.get("task_type") == "shutdown":
                     logger.info("Shutdown signal received")
                     response = {"status": "success", "message": "Shutting down", "request_id": request_id}
                     print(json.dumps(response), flush=True)
                     break
-                
+
                 # Process the task
                 response = await process_task(task_data)
-                
+
                 # Serialize response
                 if response:
                     serializable_response = response.model_dump(mode="json")
                 else:
                     serializable_response = {"status": "success"}
-                
+
                 # Add request_id to response
                 serializable_response["request_id"] = request_id
-                
+
                 # Send response back to parent (one line per response)
                 print(json.dumps(serializable_response), flush=True)
-                
+
             except json.JSONDecodeError as e:
                 error_response = {
                     "status": "error",
                     "message": f"Invalid JSON input: {str(e)}",
-                    "request_id": task_data.get("request_id", "unknown") if 'task_data' in locals() else "unknown"
+                    "request_id": task_data.get("request_id", "unknown") if "task_data" in locals() else "unknown",
                 }
                 print(json.dumps(error_response), flush=True)
-                
+
             except Exception as e:
                 logger.error("Error processing task: %s", str(e))
                 error_response = {
                     "status": "error",
                     "message": f"Unexpected error: {str(e)}",
-                    "request_id": task_data.get("request_id", "unknown") if 'task_data' in locals() else "unknown"
+                    "request_id": task_data.get("request_id", "unknown") if "task_data" in locals() else "unknown",
                 }
                 print(json.dumps(error_response), flush=True)
-    
+
     except KeyboardInterrupt:
         logger.info("Worker interrupted")
-    except Exception as e:
+    except Exception:
         logger.exception("Fatal error in worker main loop")
     finally:
         logger.info("Worker process shutting down")

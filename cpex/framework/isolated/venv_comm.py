@@ -260,5 +260,5 @@ class VenvProcessCommunicator:
 
     def __del__(self):
         """Cleanup when object is destroyed."""
-        if hasattr(self, 'running'):
+        if hasattr(self, "running"):
             self.stop_worker()
