@@ -113,9 +113,10 @@ class TestVenvProcessCommunicator:
         requirements_file = tmp_path / "requirements.txt"
         requirements_file.write_text("invalid-package-name-xyz\n")
         
-        mock_check_call.return_value = 1
+        # Simulate subprocess.check_call raising an exception
+        mock_check_call.side_effect = subprocess.CalledProcessError(1, "pip install")
         
-        with pytest.raises(Exception, match="Failed to install requirements"):
+        with pytest.raises(RuntimeError, match=f"Failed to install requirements from {requirements_file}"):
             communicator.install_requirements(str(requirements_file))
 
     def test_install_requirements_nonexistent_file(self, communicator):
