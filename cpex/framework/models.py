@@ -1309,13 +1309,13 @@ class PluginConfig(BaseModel):
             PluginConfig: A new PluginConfig instance with only data fields.
         """
         # Get the JSON-safe dictionary representation
-        safe_data = self.toJSON()
+        safe_data = self.to_json()
 
         # Create a new PluginConfig instance from the safe data
         # This will run validators again, but the resulting object will be clean
         return orjson.dumps(safe_data).decode()
 
-    def toJSON(self) -> dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Serialize the PluginConfig object to a JSON-compatible dictionary.
 
         This method converts the PluginConfig instance to a dictionary that can be
