@@ -196,7 +196,7 @@ class IsolatedVenvPlugin(Plugin):
 
         except Exception as e:
             print(f"✗ Error creating virtual environment: {e}")
-            raise e
+            raise
 
     # Called by plugins/framework/loader/plugin.py load_and_instantiate_plugin()
     # The plugins/framework/manager.py class (PluginManager) loads and registers the plugin
