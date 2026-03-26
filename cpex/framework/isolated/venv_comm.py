@@ -6,7 +6,6 @@ SPDX-License-Identifier: Apache-2.0
 Authors: Fred Araujo, Ted Habeck
 """
 
-import json
 import logging
 import os
 import subprocess
@@ -138,7 +137,7 @@ class VenvProcessCommunicator:
                     continue
 
                 try:
-                    response = json.loads(line)
+                    response = orjson.loads(line)
                     request_id = response.get("request_id")
 
                     if request_id:
@@ -151,7 +150,7 @@ class VenvProcessCommunicator:
                     else:
                         logger.warning("Received response without request_id: %s", line[:100])
 
-                except json.JSONDecodeError as e:
+                except orjson.JSONDecodeError as e:
                     logger.error("Failed to decode response: %s, line: %s", e, line[:200])
 
             except Exception as e:
@@ -228,7 +227,7 @@ class VenvProcessCommunicator:
                 if self.process.stdin:
                     try:
                         shutdown_task = {"task_type": "shutdown", "request_id": "shutdown"}
-                        self.process.stdin.write(json.dumps(shutdown_task) + "\n")
+                        self.process.stdin.write(orjson.dumps(shutdown_task).decode() + "\n")
                         self.process.stdin.flush()
                     except Exception as e:
                         logger.warning("Failed to send shutdown signal: %s", e)
