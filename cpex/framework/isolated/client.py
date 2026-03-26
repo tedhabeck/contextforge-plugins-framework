@@ -97,12 +97,12 @@ class IsolatedVenvPlugin(Plugin):
 
         # Check if venv directory exists
         if not venv_path_obj.exists():
-            logger.debug(f"Venv path does not exist: {venv_path}")
+            logger.debug("Venv path does not exist: %s", venv_path)
             return False
 
         # Check if metadata file exists
         if not metadata_path.exists():
-            logger.debug(f"Metadata file does not exist: {metadata_path}")
+            logger.debug("Metadata file does not exist: %s", metadata_path)
             return False
 
         try:
@@ -116,14 +116,14 @@ class IsolatedVenvPlugin(Plugin):
             # Compare hashes
             cached_hash = metadata.get("requirements_hash")
             if cached_hash != current_hash:
-                logger.info(f"Requirements changed. Cached hash: {cached_hash}, Current hash: {current_hash}")
+                logger.info("Requirements changed. Cached hash: %s, Current hash: %s",cached_hash, current_hash)
                 return False
 
-            logger.info(f"Valid venv cache found for {venv_path}")
+            logger.info("Valid venv cache found for %s", venv_path)
             return True
 
         except (json.JSONDecodeError, KeyError) as e:
-            logger.warning(f"Error reading cache metadata: {e}")
+            logger.warning("Error reading cache metadata: %s", str(e))
             return False
 
     def _save_cache_metadata(self, venv_path: str, requirements_file: str) -> None:
@@ -146,7 +146,7 @@ class IsolatedVenvPlugin(Plugin):
         with open(metadata_path, "w", encoding="utf8") as f:
             json.dump(metadata, f, indent=2)
 
-        logger.info(f"Saved cache metadata to {metadata_path}")
+        logger.info("Saved cache metadata to %s", metadata_path)
 
     async def create_venv(
         self, venv_path: str = ".venv", requirements_file: Optional[str] = None, use_cache: bool = True
@@ -162,13 +162,13 @@ class IsolatedVenvPlugin(Plugin):
 
         # Check if we can use cached venv
         if use_cache and requirements_file and self._is_venv_cache_valid(venv_path, requirements_file):
-            logger.info(f"Using cached virtual environment at: {venv_path_obj.resolve()}")
+            logger.info("Using cached virtual environment at: %s", venv_path_obj.resolve())
             print(f"✓ Using cached virtual environment at: {venv_path_obj.resolve()}")
             return
 
         # If cache is invalid or not using cache, remove existing venv
         if venv_path_obj.exists():
-            logger.info(f"Removing existing venv at {venv_path}")
+            logger.info("Removing existing venv at %s", venv_path)
             shutil.rmtree(venv_path_obj)
 
         # Check Python version
