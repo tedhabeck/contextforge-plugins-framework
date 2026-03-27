@@ -36,8 +36,8 @@ class TaskProcessor:
 
     config_hash: str
     module_path_hash: str
-    hook_ref: HookRef | None
-    executor: PluginExecutor | None
+    hook_ref: HookRef
+    executor: PluginExecutor
 
     def __init__(self) -> None:
         """Initialize defaults."""
@@ -45,8 +45,6 @@ class TaskProcessor:
         hasher.update(b"")
         self.config_hash = hasher.hexdigest()
         self.module_path_hash = self.config_hash
-        self.hook_ref = None
-        self.executor = None
 
     def compute_hash(self, json_config_or_module_path: str):
         """Compute the hash of the supplied string"""
@@ -105,8 +103,19 @@ async def process_task(task_data, tp: TaskProcessor):
         json_config = task_data.get("config")
         config_raw = json.loads(json_config)
         module_path: str = task_data.get("script_path")
+        
+        # Security: Validate module_path to prevent directory traversal
+        if ".." in module_path or module_path.startswith("/"):
+            raise ValueError(f"Invalid module_path: '{module_path}' - path traversal not allowed")
+        
         if tp.module_path_hash != tp.compute_hash(module_path) or tp.config_hash != tp.compute_hash(json_config):
-            sys.path.append(str(Path(module_path).resolve()))
+            # pull the resolved plugin path and only add the module path if it has the same root
+            path = Path(module_path).resolve()
+            resolved_module_path = str(path)
+            if path.exists():
+                sys.path.append(resolved_module_path)
+            else:
+                raise RuntimeError(f"plugin module_path '{resolved_module_path}' does not exist.")
             config = get_proper_config(config_raw.get("name"), module_path)
             hook_type = task_data.get(HOOK_TYPE)
             cls_name: str = task_data.get("class_name")
@@ -128,7 +137,7 @@ async def process_task(task_data, tp: TaskProcessor):
             state=context.get("state"), global_context=context.get("global_context"), metadata=context.get("metadata")
         )
         result = await tp.executor.execute_plugin(
-            hookref=tp.hook_ref,
+            hook_ref=tp.hook_ref,
             payload=task_data.get("payload"),
             local_context=plugin_context,
             violations_as_exceptions=False,

@@ -46,7 +46,7 @@ class IsolatedVenvPlugin(Plugin):
         self.plugin_path = cache_root
         if not cache_root.exists():
             raise RuntimeError("plugin script_path does not exist")
-        self.cache_dir = cache_root / ".cpex" / "venv_cache"
+        self.cache_dir: Path = cache_root / ".cpex" / "venv_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _compute_requirements_hash(self, requirements_file: str) -> str:
