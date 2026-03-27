@@ -245,7 +245,7 @@ class TestWorkerFunctions:
         tp = TaskProcessor()
         # Should return None or handle gracefully
         result = await process_task(task_data, tp)
-        assert result is None
+        assert result == {'message': 'task type not supported.', 'request_id': 'unknown', 'status': 'error'}
 
     @pytest.mark.asyncio
     @patch("cpex.framework.isolated.worker.get_proper_config")

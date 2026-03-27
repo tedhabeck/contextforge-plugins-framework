@@ -142,6 +142,11 @@ async def process_task(task_data, tp: TaskProcessor):
             violations_as_exceptions=False,
         )
         return result
+    return {
+        "status": "error",
+        "message": "task type not supported.",
+        "request_id": task_data.get("request_id", "unknown") if "task_data" in locals() else "unknown",
+    }
 
 
 async def main():
@@ -179,7 +184,7 @@ async def main():
                 # Serialize response
                 if response:
                     serializable_response = response.model_dump(mode="json")
-                else:
+                else:  # none case should be a failure rather than success.
                     serializable_response = {"status": "success"}
 
                 # Add request_id to response
