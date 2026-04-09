@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from cpex.framework.isolated.worker import TaskProcessor, get_environment_info, get_proper_config, main, process_task
+from cpex.framework.isolated.worker import TaskProcessor, get_environment_info, main, process_task
 
 
 class TestWorkerFunctions:
@@ -49,47 +49,6 @@ class TestWorkerFunctions:
         assert isinstance(info["installed_packages"], list)
         assert len(info["installed_packages"]) <= 10  # Limited to first 10
 
-    @patch("cpex.framework.isolated.worker.ConfigLoader.load_config")
-    def test_get_proper_config_found(self, mock_load_config):
-        """Test getting proper config when plugin is found."""
-        # Create mock plugin config
-        mock_plugin = MagicMock()
-        mock_plugin.name = "test_plugin"
-        mock_plugin.model_dump.return_value = {"name": "test_plugin", "kind": "isolated_venv", "config": {}}
-
-        mock_config = MagicMock()
-        mock_config.plugins = [mock_plugin]
-        mock_load_config.return_value = mock_config
-
-        result = get_proper_config("test_plugin")
-
-        assert result is not None
-        assert result.name == "test_plugin"
-
-    @patch("cpex.framework.isolated.worker.ConfigLoader.load_config")
-    def test_get_proper_config_not_found(self, mock_load_config):
-        """Test getting proper config when plugin is not found."""
-        mock_plugin = MagicMock()
-        mock_plugin.name = "other_plugin"
-
-        mock_config = MagicMock()
-        mock_config.plugins = [mock_plugin]
-        mock_load_config.return_value = mock_config
-
-        result = get_proper_config("test_plugin")
-
-        assert result is None
-
-    @patch("cpex.framework.isolated.worker.ConfigLoader.load_config")
-    def test_get_proper_config_no_plugins(self, mock_load_config):
-        """Test getting proper config when no plugins exist."""
-        mock_config = MagicMock()
-        mock_config.plugins = None
-        mock_load_config.return_value = mock_config
-
-        result = get_proper_config("test_plugin")
-
-        assert result is None
 
     @pytest.mark.asyncio
     async def test_process_task_info(self):
@@ -153,26 +112,6 @@ class TestWorkerFunctions:
         mock_plugin_instance.initialize.assert_called_once()
         mock_executor.execute_plugin.assert_called_once()
         self.cleanup_mock_plugin_dirs()
-
-    @pytest.mark.asyncio
-    @patch("cpex.framework.isolated.worker.get_proper_config")
-    async def test_process_task_load_and_run_hook_no_config(self, mock_get_config):
-        """Test processing load_and_run_hook task when config not found."""
-        mock_get_config.return_value = None
-
-        config_dict = {"name": "test_plugin", "kind": "isolated_venv"}
-        task_data = {
-            "task_type": "load_and_run_hook",
-            "config": json.dumps(config_dict),
-            "class_name": "test_plugin.TestPlugin",
-            "hook_type": "tool_pre_invoke",
-            "payload": {},
-            "context": {"state": {}, "global_context": {}, "metadata": {}},
-        }
-        tp = TaskProcessor()
-        # Should raise an error or return None
-        with pytest.raises((AttributeError, TypeError)):
-            await process_task(task_data, tp)
 
     @pytest.mark.asyncio
     @patch("cpex.framework.isolated.worker.get_proper_config")

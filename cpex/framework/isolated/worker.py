@@ -25,7 +25,7 @@ from cpex.framework.constants import HOOK_TYPE
 from cpex.framework.loader.config import ConfigLoader
 from cpex.framework.loader.plugin import ALLOWED_PLUGIN_DIRS
 from cpex.framework.manager import PluginExecutor
-from cpex.framework.models import PluginContext
+from cpex.framework.models import PluginConfig, PluginContext
 from cpex.framework.utils import parse_class_name
 
 logger = logging.getLogger(__name__)
@@ -71,25 +71,6 @@ def get_environment_info():
         "installed_packages": [str(d) for d in importlib.metadata.entry_points()][:10],  # First 10 packages
     }
 
-
-def get_proper_config(name):
-    """
-    Load a config which has all it's proper decorations
-    """
-    plugin_config_file = os.environ.get("PLUGINS_CONFIG_FILE", "plugins/config.yaml")
-    plugin_loader_config = ConfigLoader.load_config(Path(plugin_config_file).resolve(), use_jinja=False)
-    plugins: list[dict] = []
-    config = None
-    if plugin_loader_config.plugins:
-        for plug in plugin_loader_config.plugins:
-            plugins.append(plug.model_dump())
-            if plug.name == name:
-                # config = plug.model_dump()
-                config = plug
-                return config
-    return None
-
-
 async def process_task(task_data, tp: TaskProcessor):
     """Process the task received from parent."""
     task_type = task_data.get("task_type")
@@ -120,7 +101,7 @@ async def process_task(task_data, tp: TaskProcessor):
 
         if tp.config_hash != tp.compute_hash(json_config):
             # pull the resolved plugin path and only add the module path if it has the same root
-            config = get_proper_config(config_raw.get("name"))
+            config: PluginConfig = PluginConfig(**config_raw)
             hook_type = task_data.get(HOOK_TYPE)
             cls_name: str = task_data.get("class_name")
             mod_name, n_cls_name = parse_class_name(cls_name)
