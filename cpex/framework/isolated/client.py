@@ -227,11 +227,11 @@ class IsolatedVenvPlugin(Plugin):
         # Validate that the resolved path is within plugin_path (security check)
         try:
             requirements_file.relative_to(self.plugin_path.resolve())
-        except ValueError:
+        except ValueError as ve:
             raise RuntimeError(
                 f"Invalid requirements_file path: {requirements_file_input}. "
                 f"Path must be within plugin directory: {self.plugin_path}"
-            )
+            ) from ve
 
         # Create venv with caching support
         new_venv = await self.create_venv(venv_path=venv_path, requirements_file=requirements_file, use_cache=True)
