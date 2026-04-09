@@ -86,10 +86,12 @@ async def process_task(task_data, tp: TaskProcessor):
         json_config = task_data.get("config")
         config_raw = json.loads(json_config)
         module_paths: List[str] = task_data.get("plugin_dirs")
+        resolved_paths: List[str] = []
         for module_path in module_paths:
             path = Path(module_path).resolve()
             resolved_module_path = str(path)
             if path.exists():
+                resolved_paths.append(resolved_module_path)
                 if resolved_module_path not in sys.path:
                     if resolved_module_path.startswith(tuple(ALLOWED_PLUGIN_DIRS)):
                         sys.path.append(resolved_module_path)
@@ -115,7 +117,7 @@ async def process_task(task_data, tp: TaskProcessor):
             hook_ref = HookRef(hook_type, plugin_ref)
             executor = PluginExecutor(None, 30)
             tp.initialize(
-                hook_ref=hook_ref, executor=executor, json_config=json_config, module_path=resolved_module_path
+                hook_ref=hook_ref, executor=executor, json_config=json_config, module_path=json.dumps(resolved_paths)
             )
         # retrieve the context
         context = task_data.get("context")
