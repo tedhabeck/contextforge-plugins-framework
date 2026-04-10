@@ -251,7 +251,7 @@ class TestIsolatedPluginIntegration:
         
         # Capture the task data sent
         captured_task = None
-        def capture_task(script_path, task_data):
+        def capture_task(script_path, task_data, max_content_size):
             nonlocal captured_task
             captured_task = task_data
             return {
@@ -274,7 +274,7 @@ class TestIsolatedPluginIntegration:
             "config": {
                 "class_name": "test_plugin.TestPlugin",
                 "requirements_file": "requirements.txt",
-            }
+            },
         }
         config = PluginConfig(**config_dict)
         resolved_plugin_path = (tmp_path / "xplugins" ).resolve()

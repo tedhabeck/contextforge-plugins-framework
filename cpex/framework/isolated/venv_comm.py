@@ -161,7 +161,7 @@ class VenvProcessCommunicator:
         self.running = False
         logger.info("Response reader thread terminated")
 
-    def send_task(self, script_path: str, task_data: Any, timeout: float = 30.0) -> Any:
+    def send_task(self, script_path: str, task_data: Any, timeout: float = 30.0, max_content_size: int = 10000000) -> Any:
         """
         Send a task to the long-running worker process and get response.
 
@@ -189,6 +189,10 @@ class VenvProcessCommunicator:
         try:
             # Send task to worker
             input_json = orjson.dumps(task_data).decode()
+            if len(input_json) > max_content_size:
+                # remove the request_id from the response queue and raise
+                self.response_queues.pop(request_id)
+                raise RuntimeError(f"task_data exceeds max_content_size.  {len(input_json)}")
             if self.process and self.process.stdin:
                 self.process.stdin.write(input_json + "\n")
                 self.process.stdin.flush()

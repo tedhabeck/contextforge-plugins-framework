@@ -1194,6 +1194,7 @@ class PluginConfig(BaseModel):
         config (dict[str, Any]): the plugin specific configurations.
         mcp (Optional[MCPClientConfig]): Client-side MCP configuration (gateway connecting to plugin).
         grpc (Optional[GRPCClientConfig]): Client-side gRPC configuration (gateway connecting to plugin).
+        max_content_size (Optional(int)): The maximum size of payload, context, 
     """
 
     name: str
@@ -1207,6 +1208,7 @@ class PluginConfig(BaseModel):
     mode: PluginMode = PluginMode.SEQUENTIAL
     on_error: OnError = OnError.FAIL
     priority: int = 100  # Lower = higher priority
+    max_content_size: int = 10000000
 
     @model_validator(mode="before")
     @classmethod
