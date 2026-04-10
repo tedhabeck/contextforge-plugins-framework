@@ -323,7 +323,10 @@ class IsolatedVenvPlugin(Plugin):
             result_dict: dict[str, Any] = await loop.run_in_executor(
                 None,
                 functools.partial(
-                    self.comm.send_task, script_path="cpex/framework/isolated/worker.py", task_data=task_data, max_content_size=self.config.max_content_size
+                    self.comm.send_task,
+                    script_path="cpex/framework/isolated/worker.py",
+                    task_data=task_data,
+                    max_content_size=self.config.max_content_size,
                 ),
             )
             # Convert response to typed result

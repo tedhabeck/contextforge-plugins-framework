@@ -53,7 +53,14 @@ class TaskProcessor:
         hasher.update(json_config_or_module_path.encode())
         return hasher.hexdigest()
 
-    def initialize(self, hook_ref: HookRef, executor: PluginExecutor, json_config: str, module_path: str, plugin_config: PluginConfig):
+    def initialize(
+        self,
+        hook_ref: HookRef,
+        executor: PluginExecutor,
+        json_config: str,
+        module_path: str,
+        plugin_config: PluginConfig,
+    ):
         """Assign locals, and compute hashes."""
         self.hook_ref = hook_ref
         self.executor = executor
@@ -119,7 +126,11 @@ async def process_task(task_data, tp: TaskProcessor):
             hook_ref = HookRef(hook_type, plugin_ref)
             executor = PluginExecutor(None, 30)
             tp.initialize(
-                hook_ref=hook_ref, executor=executor, json_config=json_config, module_path=json.dumps(resolved_paths), plugin_config=config
+                hook_ref=hook_ref,
+                executor=executor,
+                json_config=json_config,
+                module_path=json.dumps(resolved_paths),
+                plugin_config=config,
             )
         # retrieve the context
         context = task_data.get("context")
@@ -191,7 +202,7 @@ async def main():
                         logger.error("Serialized response exceeds max content size")
                         error_response = {
                             "status": "error",
-                            "message": f"Serialized response exceeds max content size",
+                            "message": "Serialized response exceeds max content size",
                             "request_id": request_id,
                         }
                         serialized_response = json.dumps(error_response)

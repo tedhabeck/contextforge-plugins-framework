@@ -1194,7 +1194,7 @@ class PluginConfig(BaseModel):
         config (dict[str, Any]): the plugin specific configurations.
         mcp (Optional[MCPClientConfig]): Client-side MCP configuration (gateway connecting to plugin).
         grpc (Optional[GRPCClientConfig]): Client-side gRPC configuration (gateway connecting to plugin).
-        max_content_size (Optional(int)): The maximum size of payload, context, 
+        max_content_size (Optional(int)): The maximum size of payload, context,
     """
 
     name: str

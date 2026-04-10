@@ -161,7 +161,9 @@ class VenvProcessCommunicator:
         self.running = False
         logger.info("Response reader thread terminated")
 
-    def send_task(self, script_path: str, task_data: Any, timeout: float = 30.0, max_content_size: int = 10000000) -> Any:
+    def send_task(
+        self, script_path: str, task_data: Any, timeout: float = 30.0, max_content_size: int = 10000000
+    ) -> Any:
         """
         Send a task to the long-running worker process and get response.
 
