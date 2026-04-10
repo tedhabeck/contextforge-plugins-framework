@@ -17,7 +17,7 @@ from typing import Type, cast
 
 # First-Party
 from cpex.framework.base import Plugin
-from cpex.framework.constants import EXTERNAL_PLUGIN_TYPE
+from cpex.framework.constants import EXTERNAL_PLUGIN_TYPE, ISOLATED_VENV_PLUGIN_TYPE
 from cpex.framework.external.mcp.client import ExternalPlugin
 from cpex.framework.models import PluginConfig
 from cpex.framework.utils import import_module, parse_class_name
@@ -53,6 +53,7 @@ class PluginLoader:
             {}
         """
         self._plugin_types: dict[str, Type[Plugin]] = {}
+        self.plugin_dirs: list[str] = []
 
     def __get_plugin_type(self, kind: str) -> Type[Plugin]:
         """Import a plugin type from a python module.
@@ -142,6 +143,13 @@ class PluginLoader:
             await plugin.initialize()
             return plugin
 
+        if config.kind == ISOLATED_VENV_PLUGIN_TYPE:
+            from cpex.framework.isolated.client import IsolatedVenvPlugin  # pylint: disable=import-outside-toplevel
+
+            plugin: Plugin = IsolatedVenvPlugin(config, plugin_dirs=self.plugin_dirs.copy())
+            await plugin.initialize()
+            return plugin
+
         # Handle other plugin types
         if config.kind not in self._plugin_types:
             self.__register_plugin_type(config.kind)
@@ -160,8 +168,10 @@ class PluginLoader:
         """
         for plugin_dir in plugin_dirs:
             resolved = str(Path(plugin_dir).resolve())
-            if resolved not in sys.path and resolved.startswith(tuple(ALLOWED_PLUGIN_DIRS)):
-                sys.path.append(resolved)
+            if resolved.startswith(tuple(ALLOWED_PLUGIN_DIRS)):
+                self.plugin_dirs.append(plugin_dir)
+                if resolved not in sys.path:
+                    sys.path.append(resolved)
 
     async def shutdown(self) -> None:
         """Shutdown and cleanup plugin loader.
