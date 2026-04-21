@@ -411,7 +411,7 @@ class ORJSONResponse(JSONResponse):
         )
 
 
-def find_package_path( package_name: str) -> Path:
+def find_package_path(package_name: str) -> Path:
     """Locate installed package directory using importlib.metadata.
 
     Args:
